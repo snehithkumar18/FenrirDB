@@ -24,6 +24,7 @@ set(DB_SOURCES
     src/transaction_manager.cc
     src/optimizer.cc
     src/checkpoint.cc
+    src/wal_buffer.cc
 )
 
 # Core Shell executable
@@ -50,6 +51,8 @@ add_executable(test_checkpoint tests/test_checkpoint.cc ${DB_SOURCES})
 add_executable(test_composite_index tests/test_composite_index.cc ${DB_SOURCES})
 add_executable(test_cbo_crashes tests/test_cbo_crashes.cc ${DB_SOURCES})
 add_executable(test_composite_fuzz tests/test_composite_fuzz.cc ${DB_SOURCES})
+add_executable(test_executors_advanced tests/test_executors_advanced.cc ${DB_SOURCES})
+add_executable(test_wal_buffer tests/test_wal_buffer.cc ${DB_SOURCES})
 
 if(DEFINED ENV{LIB_FUZZING_ENGINE})
     # Platform build mode
