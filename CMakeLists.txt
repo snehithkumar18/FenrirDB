@@ -23,6 +23,7 @@ set(DB_SOURCES
     src/query_planner.cc
     src/transaction_manager.cc
     src/optimizer.cc
+    src/checkpoint.cc
 )
 
 # Core Shell executable
@@ -43,6 +44,9 @@ add_executable(test_optimizer tests/test_optimizer.cc ${DB_SOURCES})
 add_executable(test_benchmark tests/benchmark.cc ${DB_SOURCES})
 add_executable(test_recovery_stress tests/test_recovery_stress.cc ${DB_SOURCES})
 add_executable(test_nesting_stress tests/test_nesting_stress.cc ${DB_SOURCES})
+add_executable(test_joins tests/test_joins.cc ${DB_SOURCES})
+add_executable(test_aggregations tests/test_aggregations.cc ${DB_SOURCES})
+add_executable(test_checkpoint tests/test_checkpoint.cc ${DB_SOURCES})
 
 if(DEFINED ENV{LIB_FUZZING_ENGINE})
     # Platform build mode
