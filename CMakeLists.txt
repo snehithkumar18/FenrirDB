@@ -53,6 +53,9 @@ add_executable(test_cbo_crashes tests/test_cbo_crashes.cc ${DB_SOURCES})
 add_executable(test_composite_fuzz tests/test_composite_fuzz.cc ${DB_SOURCES})
 add_executable(test_executors_advanced tests/test_executors_advanced.cc ${DB_SOURCES})
 add_executable(test_wal_buffer tests/test_wal_buffer.cc ${DB_SOURCES})
+add_executable(test_performance_stress tests/test_performance_stress.cc ${DB_SOURCES})
+add_executable(test_parser_stress tests/test_parser_stress.cc ${DB_SOURCES})
+add_executable(test_mct_stress tests/test_mct_stress.cc ${DB_SOURCES})
 
 if(DEFINED ENV{LIB_FUZZING_ENGINE})
     # Platform build mode
