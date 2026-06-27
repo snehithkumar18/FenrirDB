@@ -42,6 +42,7 @@ add_executable(test_transaction_manager tests/test_transaction_manager.cc ${DB_S
 add_executable(test_optimizer tests/test_optimizer.cc ${DB_SOURCES})
 add_executable(test_benchmark tests/benchmark.cc ${DB_SOURCES})
 add_executable(test_recovery_stress tests/test_recovery_stress.cc ${DB_SOURCES})
+add_executable(test_nesting_stress tests/test_nesting_stress.cc ${DB_SOURCES})
 
 if(DEFINED ENV{LIB_FUZZING_ENGINE})
     # Platform build mode
