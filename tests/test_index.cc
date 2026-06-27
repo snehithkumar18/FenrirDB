@@ -29,26 +29,26 @@ void test_index_basic() {
     FenrirDB::RecordID r2 = { 11, 2 };
     FenrirDB::RecordID r3 = { 12, 3 };
 
-    DBErrorCode res = idx.insert("Alice", r1);
+    DBErrorCode res = idx.insert(FenrirDB::CompositeKey("Alice"), r1);
     assert(res == DBErrorCode::SUCCESS);
     
-    res = idx.insert("Charlie", r3);
+    res = idx.insert(FenrirDB::CompositeKey("Charlie"), r3);
     assert(res == DBErrorCode::SUCCESS);
 
-    res = idx.insert("Bob", r2);
+    res = idx.insert(FenrirDB::CompositeKey("Bob"), r2);
     assert(res == DBErrorCode::SUCCESS);
 
     // Search keys
     FenrirDB::RecordID val;
-    res = idx.search("Bob", val);
+    res = idx.search(FenrirDB::CompositeKey("Bob"), val);
     assert(res == DBErrorCode::SUCCESS);
     assert(val == r2);
 
-    res = idx.search("Alice", val);
+    res = idx.search(FenrirDB::CompositeKey("Alice"), val);
     assert(res == DBErrorCode::SUCCESS);
     assert(val == r1);
 
-    res = idx.search("Charlie", val);
+    res = idx.search(FenrirDB::CompositeKey("Charlie"), val);
     assert(res == DBErrorCode::SUCCESS);
     assert(val == r3);
 
@@ -76,13 +76,13 @@ void test_index_range_search() {
 
     FenrirDB::BPlusTreeIndex idx(disk_mgr, cache_mgr, root_id);
 
-    idx.insert("key10", { 10, 0 });
-    idx.insert("key20", { 20, 0 });
-    idx.insert("key30", { 30, 0 });
-    idx.insert("key40", { 40, 0 });
+    idx.insert(FenrirDB::CompositeKey("key10"), { 10, 0 });
+    idx.insert(FenrirDB::CompositeKey("key20"), { 20, 0 });
+    idx.insert(FenrirDB::CompositeKey("key30"), { 30, 0 });
+    idx.insert(FenrirDB::CompositeKey("key40"), { 40, 0 });
 
     std::vector<FenrirDB::RecordID> results;
-    DBErrorCode res = idx.range_search("key20", "key35", results);
+    DBErrorCode res = idx.range_search(FenrirDB::CompositeKey("key20"), FenrirDB::CompositeKey("key35"), results);
     assert(res == DBErrorCode::SUCCESS);
     assert(results.size() == 2);
     assert(results[0].page_id == 20);

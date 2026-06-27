@@ -62,7 +62,7 @@ void IndexScanExecutor::init() {
 bool IndexScanExecutor::next(Document& doc, RecordID& rid) {
     if (fetched) return false;
 
-    DBErrorCode res = index.search(key, rid);
+    DBErrorCode res = index.search(CompositeKey(key), rid);
     if (res != DBErrorCode::SUCCESS) {
         fetched = true;
         return false;

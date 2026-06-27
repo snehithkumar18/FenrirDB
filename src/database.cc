@@ -68,7 +68,7 @@ DBErrorCode Database::insert(const std::string& key, const Document& doc) {
 
     // Insert record pointer location into B+ Tree index
     RecordID val = { doc_page_id, slot_id };
-    res = index->insert(key, val);
+    res = index->insert(CompositeKey(key), val);
     
     Logger::get_instance().info("Database", "Inserted document under key: " + key + " at Page=" + std::to_string(doc_page_id));
     return res;
@@ -78,7 +78,7 @@ DBErrorCode Database::get(const std::string& key, Document& doc) {
     if (!cache_manager || !index) return DBErrorCode::ERR_GENERIC;
 
     RecordID loc;
-    DBErrorCode res = index->search(key, loc);
+    DBErrorCode res = index->search(CompositeKey(key), loc);
     if (res != DBErrorCode::SUCCESS) {
         return res;
     }
@@ -100,7 +100,7 @@ DBErrorCode Database::find_range(const std::string& start_key, const std::string
     if (!cache_manager || !index) return DBErrorCode::ERR_GENERIC;
 
     std::vector<RecordID> locs;
-    DBErrorCode res = index->range_search(start_key, end_key, locs);
+    DBErrorCode res = index->range_search(CompositeKey(start_key), CompositeKey(end_key), locs);
     if (res != DBErrorCode::SUCCESS) {
         return res;
     }
