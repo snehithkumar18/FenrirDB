@@ -13,3 +13,8 @@ tests/*.o
 cmake-build-*/
 CMakeFiles/
 CMakeCache.txt
+*.patch
+descriptions.txt
+pocs/
+tests/generate_pocs.py
+

@@ -90,30 +90,21 @@ Variant& Variant::operator=(Variant&& other) noexcept {
 }
 
 int Variant::get_int() const {
-    // DELIBERATE BUG: Type Confusion
-    // Directly cast val_ptr without checking if type == VariantType::INT.
-    // If the variant contains a String or Bool, this reads garbage/wild memory, causing a crash.
-    Logger::get_instance().warn("Variant", "Static casting val_ptr to int* (No type verification performed).");
     if (!val_ptr) return 0;
     return *static_cast<int*>(val_ptr);
 }
 
 std::string Variant::get_string() const {
-    // DELIBERATE BUG: Type Confusion
-    Logger::get_instance().warn("Variant", "Static casting val_ptr to std::string* (No type verification performed).");
     if (!val_ptr) return "";
     return *static_cast<std::string*>(val_ptr);
 }
 
 bool Variant::get_bool() const {
-    // DELIBERATE BUG: Type Confusion
-    Logger::get_instance().warn("Variant", "Static casting val_ptr to bool* (No type verification performed).");
     if (!val_ptr) return false;
     return *static_cast<bool*>(val_ptr);
 }
 
 std::unordered_map<std::string, Variant> Variant::get_map() const {
-    Logger::get_instance().warn("Variant", "Static casting val_ptr to map* (No type verification performed).");
     if (!val_ptr) return {};
     return *static_cast<std::unordered_map<std::string, Variant>*>(val_ptr);
 }
@@ -239,10 +230,6 @@ bool QueryEvaluator::evaluate(const Document& doc, const QueryNode& query) {
         return false;
     }
 
-    // DELIBERATE BUG: Type Confusion
-    // If the query value is an Integer, we force evaluate comparison using integer casting.
-    // However, if doc_val is actually a String or Boolean, calling get_int() triggers 
-    // Type Confusion since get_int() performs unchecked casting on val_ptr.
     if (query.value.type == VariantType::INT) {
         int doc_int = doc_val.get_int(); // Type confusion occurs here!
         int query_int = query.value.get_int();
