@@ -16,7 +16,28 @@ set(DB_SOURCES
     src/index.cc
     src/query.cc
     src/database.cc
+    src/wal.cc
+    src/lock_manager.cc
+    src/sql_parser.cc
+    src/json_parser.cc
+    src/query_planner.cc
+    src/transaction_manager.cc
 )
+
+# Core Shell executable
+add_executable(db_shell src/db_shell.cc ${DB_SOURCES})
+
+# Test suite targets
+add_executable(test_storage tests/test_storage.cc ${DB_SOURCES})
+add_executable(test_cache tests/test_cache.cc ${DB_SOURCES})
+add_executable(test_index tests/test_index.cc ${DB_SOURCES})
+add_executable(test_database tests/test_database.cc ${DB_SOURCES})
+add_executable(test_lock_manager tests/test_lock_manager.cc ${DB_SOURCES})
+add_executable(test_wal tests/test_wal.cc ${DB_SOURCES})
+add_executable(test_stress tests/test_stress.cc ${DB_SOURCES})
+add_executable(test_json_parser tests/test_json_parser.cc ${DB_SOURCES})
+add_executable(test_query_planner tests/test_query_planner.cc ${DB_SOURCES})
+add_executable(test_transaction_manager tests/test_transaction_manager.cc ${DB_SOURCES})
 
 if(DEFINED ENV{LIB_FUZZING_ENGINE})
     # Platform build mode
