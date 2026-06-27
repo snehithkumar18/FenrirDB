@@ -78,6 +78,7 @@ add_executable(test_partition tests/test_partition.cc ${DB_SOURCES})
 add_executable(test_partition_hash tests/test_partition_hash.cc ${DB_SOURCES})
 add_executable(test_partition_list tests/test_partition_list.cc ${DB_SOURCES})
 add_executable(test_unpivot tests/test_unpivot.cc ${DB_SOURCES})
+add_executable(test_sql_cte_joins tests/test_sql_cte_joins.cc ${DB_SOURCES})
 
 if(DEFINED ENV{LIB_FUZZING_ENGINE})
     # Platform build mode
