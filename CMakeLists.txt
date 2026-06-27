@@ -22,6 +22,7 @@ set(DB_SOURCES
     src/json_parser.cc
     src/query_planner.cc
     src/transaction_manager.cc
+    src/optimizer.cc
 )
 
 # Core Shell executable
@@ -38,6 +39,7 @@ add_executable(test_stress tests/test_stress.cc ${DB_SOURCES})
 add_executable(test_json_parser tests/test_json_parser.cc ${DB_SOURCES})
 add_executable(test_query_planner tests/test_query_planner.cc ${DB_SOURCES})
 add_executable(test_transaction_manager tests/test_transaction_manager.cc ${DB_SOURCES})
+add_executable(test_optimizer tests/test_optimizer.cc ${DB_SOURCES})
 
 if(DEFINED ENV{LIB_FUZZING_ENGINE})
     # Platform build mode
