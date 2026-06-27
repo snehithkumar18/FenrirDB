@@ -12,7 +12,9 @@ enum class VariantType : uint8_t {
     NIL = 0,
     INT = 1,
     STRING = 2,
-    BOOL = 3
+    BOOL = 3,
+    MAP = 4,
+    ARRAY = 5
 };
 
 struct Variant {
@@ -23,6 +25,8 @@ struct Variant {
     explicit Variant(int val);
     explicit Variant(const std::string& val);
     explicit Variant(bool val);
+    explicit Variant(const std::unordered_map<std::string, Variant>& val);
+    explicit Variant(const std::vector<Variant>& val);
     ~Variant();
 
     Variant(const Variant& other);
@@ -33,6 +37,8 @@ struct Variant {
     int get_int() const;       // Injected Bug 3 (Type Confusion)
     std::string get_string() const; // Injected Bug 3 (Type Confusion)
     bool get_bool() const;     // Injected Bug 3 (Type Confusion)
+    std::unordered_map<std::string, Variant> get_map() const;
+    std::vector<Variant> get_array() const;
 
     void clear();
 };

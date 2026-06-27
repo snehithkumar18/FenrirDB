@@ -19,6 +19,14 @@ Variant::Variant(bool val) : type(VariantType::BOOL) {
     val_ptr = new bool(val);
 }
 
+Variant::Variant(const std::unordered_map<std::string, Variant>& val) : type(VariantType::MAP) {
+    val_ptr = new std::unordered_map<std::string, Variant>(val);
+}
+
+Variant::Variant(const std::vector<Variant>& val) : type(VariantType::ARRAY) {
+    val_ptr = new std::vector<Variant>(val);
+}
+
 Variant::~Variant() {
     clear();
 }
@@ -31,6 +39,10 @@ void Variant::clear() {
             delete static_cast<std::string*>(val_ptr);
         } else if (type == VariantType::BOOL) {
             delete static_cast<bool*>(val_ptr);
+        } else if (type == VariantType::MAP) {
+            delete static_cast<std::unordered_map<std::string, Variant>*>(val_ptr);
+        } else if (type == VariantType::ARRAY) {
+            delete static_cast<std::vector<Variant>*>(val_ptr);
         }
         val_ptr = nullptr;
     }
@@ -52,6 +64,10 @@ Variant& Variant::operator=(const Variant& other) {
                 val_ptr = new std::string(*static_cast<std::string*>(other.val_ptr));
             } else if (type == VariantType::BOOL) {
                 val_ptr = new bool(*static_cast<bool*>(other.val_ptr));
+            } else if (type == VariantType::MAP) {
+                val_ptr = new std::unordered_map<std::string, Variant>(*static_cast<std::unordered_map<std::string, Variant>*>(other.val_ptr));
+            } else if (type == VariantType::ARRAY) {
+                val_ptr = new std::vector<Variant>(*static_cast<std::vector<Variant>*>(other.val_ptr));
             }
         }
     }
@@ -94,6 +110,18 @@ bool Variant::get_bool() const {
     Logger::get_instance().warn("Variant", "Static casting val_ptr to bool* (No type verification performed).");
     if (!val_ptr) return false;
     return *static_cast<bool*>(val_ptr);
+}
+
+std::unordered_map<std::string, Variant> Variant::get_map() const {
+    Logger::get_instance().warn("Variant", "Static casting val_ptr to map* (No type verification performed).");
+    if (!val_ptr) return {};
+    return *static_cast<std::unordered_map<std::string, Variant>*>(val_ptr);
+}
+
+std::vector<Variant> Variant::get_array() const {
+    Logger::get_instance().warn("Variant", "Static casting val_ptr to vector* (No type verification performed).");
+    if (!val_ptr) return {};
+    return *static_cast<std::vector<Variant>*>(val_ptr);
 }
 
 // ======================================================================
