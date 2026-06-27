@@ -35,6 +35,7 @@ set(DB_SOURCES
     src/query_engine_compiler_partition.cc
     src/query_engine_compiler_partition_hash.cc
     src/query_engine_compiler_partition_list.cc
+    src/query_engine_compiler_pivot_unpivot.cc
 )
 
 # Core Shell executable
@@ -76,6 +77,7 @@ add_executable(test_pivot tests/test_pivot.cc ${DB_SOURCES})
 add_executable(test_partition tests/test_partition.cc ${DB_SOURCES})
 add_executable(test_partition_hash tests/test_partition_hash.cc ${DB_SOURCES})
 add_executable(test_partition_list tests/test_partition_list.cc ${DB_SOURCES})
+add_executable(test_unpivot tests/test_unpivot.cc ${DB_SOURCES})
 
 if(DEFINED ENV{LIB_FUZZING_ENGINE})
     # Platform build mode
