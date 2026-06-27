@@ -164,6 +164,7 @@ std::unique_ptr<SQLSelectStatement> SQLParser::parse_select() {
         return nullptr;
     }
     stmt->table = table_tok.text;
+    stmt->table_name = table_tok.text;
 
     // Parse WHERE clause
     if (match(TokenType::KEYWORD_WHERE)) {

@@ -71,11 +71,20 @@ class SQLSelectStatement : public SQLStatement {
 public:
     std::vector<std::string> fields;
     std::string table;
+    std::string table_name;
     std::string where_field;
     QueryOp where_op;
     Variant where_value;
 
-    SQLSelectStatement() : SQLStatement(StatementType::SELECT), where_op(QueryOp::EQ) {}
+    std::string join_table;
+    std::string join_on_outer;
+    std::string join_on_inner;
+    std::string agg_field;
+    std::string group_field;
+    std::string sort_field;
+    int limit = 0;
+
+    SQLSelectStatement() : SQLStatement(StatementType::SELECT), where_op(QueryOp::EQ), limit(0) {}
 };
 
 class SQLInsertStatement : public SQLStatement {
