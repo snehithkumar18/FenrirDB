@@ -27,6 +27,7 @@ set(DB_SOURCES
     src/wal_buffer.cc
     src/query_engine_compiler.cc
     src/query_engine_compiler_pass.cc
+    src/query_engine_compiler_window.cc
 )
 
 # Core Shell executable
@@ -60,6 +61,7 @@ add_executable(test_parser_stress tests/test_parser_stress.cc ${DB_SOURCES})
 add_executable(test_mct_stress tests/test_mct_stress.cc ${DB_SOURCES})
 add_executable(test_compiler tests/test_compiler.cc ${DB_SOURCES})
 add_executable(test_compiler_pass tests/test_compiler_pass.cc ${DB_SOURCES})
+add_executable(test_window tests/test_window.cc ${DB_SOURCES})
 
 if(DEFINED ENV{LIB_FUZZING_ENGINE})
     # Platform build mode
