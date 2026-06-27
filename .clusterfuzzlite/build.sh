@@ -15,7 +15,8 @@ $CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/transaction_manager.cc -o transaction_ma
 $CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/optimizer.cc -o optimizer.o
 $CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/checkpoint.cc -o checkpoint.o
 $CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/wal_buffer.cc -o wal_buffer.o
+$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/query_engine_compiler.cc -o query_engine_compiler.o
 
 # Compile fuzz targets and link with the fuzzing engine
-$CXX $CXXFLAGS -std=c++17 -Isrc/ fuzz/fuzz_query.cc storage.o cache.o index.o query.o database.o wal.o lock_manager.o sql_parser.o json_parser.o query_planner.o transaction_manager.o optimizer.o checkpoint.o wal_buffer.o -o $OUT/fuzz_query $LIB_FUZZING_ENGINE
-$CXX $CXXFLAGS -std=c++17 -Isrc/ fuzz/fuzz_storage.cc storage.o cache.o index.o query.o database.o wal.o lock_manager.o sql_parser.o json_parser.o query_planner.o transaction_manager.o optimizer.o checkpoint.o wal_buffer.o -o $OUT/fuzz_storage $LIB_FUZZING_ENGINE
+$CXX $CXXFLAGS -std=c++17 -Isrc/ fuzz/fuzz_query.cc storage.o cache.o index.o query.o database.o wal.o lock_manager.o sql_parser.o json_parser.o query_planner.o transaction_manager.o optimizer.o checkpoint.o wal_buffer.o query_engine_compiler.o -o $OUT/fuzz_query $LIB_FUZZING_ENGINE
+$CXX $CXXFLAGS -std=c++17 -Isrc/ fuzz/fuzz_storage.cc storage.o cache.o index.o query.o database.o wal.o lock_manager.o sql_parser.o json_parser.o query_planner.o transaction_manager.o optimizer.o checkpoint.o wal_buffer.o query_engine_compiler.o -o $OUT/fuzz_storage $LIB_FUZZING_ENGINE
