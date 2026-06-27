@@ -47,6 +47,7 @@ add_executable(test_nesting_stress tests/test_nesting_stress.cc ${DB_SOURCES})
 add_executable(test_joins tests/test_joins.cc ${DB_SOURCES})
 add_executable(test_aggregations tests/test_aggregations.cc ${DB_SOURCES})
 add_executable(test_checkpoint tests/test_checkpoint.cc ${DB_SOURCES})
+add_executable(test_composite_index tests/test_composite_index.cc ${DB_SOURCES})
 
 if(DEFINED ENV{LIB_FUZZING_ENGINE})
     # Platform build mode
