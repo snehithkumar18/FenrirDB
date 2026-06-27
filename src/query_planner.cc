@@ -184,4 +184,281 @@ std::unique_ptr<AbstractExecutor> QueryPlanner::plan_query(const SQLSelectStatem
     return leaf_executor;
 }
 
+// ======================================================================
+// NestedLoopJoinExecutor Implementation
+// ======================================================================
+
+NestedLoopJoinExecutor::NestedLoopJoinExecutor(std::unique_ptr<AbstractExecutor> out, std::unique_ptr<AbstractExecutor> in,
+                                               const std::string& out_c, const std::string& in_c)
+    : outer(std::move(out)), inner(std::move(in)), outer_col(out_c), inner_col(in_c) {}
+
+void NestedLoopJoinExecutor::init() {
+    outer->init();
+    inner->init();
+    has_outer = false;
+    Logger::get_instance().info("Executor", "NestedLoopJoin initialized.");
+}
+
+bool NestedLoopJoinExecutor::next(Document& doc, RecordID& rid) {
+    while (true) {
+        if (!has_outer) {
+            if (!outer->next(outer_doc, outer_rid)) {
+                return false; // Outer depleted
+            }
+            has_outer = true;
+            inner->init(); // Restart inner scanner
+        }
+
+        Document inner_doc;
+        RecordID inner_rid;
+        while (inner->next(inner_doc, inner_rid)) {
+            Variant out_val, in_val;
+            if (outer_doc.get_field(outer_col, out_val) && inner_doc.get_field(inner_col, in_val)) {
+                // Equality join check
+                if (out_val.type == VariantType::INT && in_val.type == VariantType::INT) {
+                    if (out_val.get_int() == in_val.get_int()) {
+                        // Merge fields from outer and inner documents into doc
+                        doc = outer_doc;
+                        doc.set_field(inner_col, in_val);
+                        rid = outer_rid;
+                        return true;
+                    }
+                } else if (out_val.type == VariantType::STRING && in_val.type == VariantType::STRING) {
+                    if (out_val.get_string() == in_val.get_string()) {
+                        doc = outer_doc;
+                        doc.set_field(inner_col, in_val);
+                        rid = outer_rid;
+                        return true;
+                    }
+                }
+            }
+        }
+        has_outer = false; // Move to next outer record
+    }
+}
+
+void NestedLoopJoinExecutor::close() {
+    outer->close();
+    inner->close();
+}
+
+// ======================================================================
+// HashJoinExecutor Implementation
+// ======================================================================
+
+HashJoinExecutor::HashJoinExecutor(std::unique_ptr<AbstractExecutor> out, std::unique_ptr<AbstractExecutor> in,
+                                   const std::string& out_c, const std::string& in_c)
+    : outer(std::move(out)), inner(std::move(in)), outer_col(out_c), inner_col(in_c) {}
+
+void HashJoinExecutor::build_hash_table() {
+    hash_table.clear();
+    inner->init();
+    Document in_doc;
+    RecordID in_rid;
+    while (inner->next(in_doc, in_rid)) {
+        Variant val;
+        if (in_doc.get_field(inner_col, val)) {
+            std::string hash_key;
+            if (val.type == VariantType::INT) hash_key = std::to_string(val.get_int());
+            else if (val.type == VariantType::STRING) hash_key = val.get_string();
+            else if (val.type == VariantType::BOOL) hash_key = val.get_bool() ? "true" : "false";
+
+            if (!hash_key.empty()) {
+                hash_table[hash_key].push_back(in_doc);
+            }
+        }
+    }
+    inner->close();
+}
+
+void HashJoinExecutor::init() {
+    outer->init();
+    build_hash_table();
+    cursor = 0;
+    matched_docs.clear();
+    Logger::get_instance().info("Executor", "HashJoin initialized. Built hash table size=" + std::to_string(hash_table.size()));
+}
+
+bool HashJoinExecutor::next(Document& doc, RecordID& rid) {
+    if (cursor < matched_docs.size()) {
+        doc = matched_docs[cursor++];
+        rid = { 0, 0 };
+        return true;
+    }
+
+    matched_docs.clear();
+    cursor = 0;
+
+    Document out_doc;
+    RecordID out_rid;
+    while (outer->next(out_doc, out_rid)) {
+        Variant val;
+        if (out_doc.get_field(outer_col, val)) {
+            std::string hash_key;
+            if (val.type == VariantType::INT) hash_key = std::to_string(val.get_int());
+            else if (val.type == VariantType::STRING) hash_key = val.get_string();
+            else if (val.type == VariantType::BOOL) hash_key = val.get_bool() ? "true" : "false";
+
+            auto it = hash_table.find(hash_key);
+            if (it != hash_table.end()) {
+                for (const auto& in_doc : it->second) {
+                    Document joined = out_doc;
+                    // Merge fields
+                    Variant in_val;
+                    if (in_doc.get_field(inner_col, in_val)) {
+                        joined.set_field(inner_col, in_val);
+                    }
+                    matched_docs.push_back(joined);
+                }
+                if (!matched_docs.empty()) {
+                    doc = matched_docs[cursor++];
+                    rid = out_rid;
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+void HashJoinExecutor::close() {
+    outer->close();
+}
+
+// ======================================================================
+// SortExecutor Implementation
+// ======================================================================
+
+SortExecutor::SortExecutor(std::unique_ptr<AbstractExecutor> ch, const std::string& col, bool asc)
+    : child(std::move(ch)), sort_col(col), ascending(asc) {}
+
+void SortExecutor::init() {
+    child->init();
+    sorted_records.clear();
+    cursor = 0;
+
+    Document doc;
+    RecordID rid;
+    while (child->next(doc, rid)) {
+        sorted_records.push_back({ doc, rid });
+    }
+
+    // Sort documents using custom comparator
+    std::sort(sorted_records.begin(), sorted_records.end(), [&](const std::pair<Document, RecordID>& a, const std::pair<Document, RecordID>& b) {
+        Variant val_a, val_b;
+        a.first.get_field(sort_col, val_a);
+        b.first.get_field(sort_col, val_b);
+
+        if (val_a.type == VariantType::INT && val_b.type == VariantType::INT) {
+            return ascending ? (val_a.get_int() < val_b.get_int()) : (val_a.get_int() > val_b.get_int());
+        } else if (val_a.type == VariantType::STRING && val_b.type == VariantType::STRING) {
+            return ascending ? (val_a.get_string() < val_b.get_string()) : (val_a.get_string() > val_b.get_string());
+        }
+        return false;
+    });
+
+    Logger::get_instance().info("Executor", "SortExecutor sorted " + std::to_string(sorted_records.size()) + " records.");
+}
+
+bool SortExecutor::next(Document& doc, RecordID& rid) {
+    if (cursor < sorted_records.size()) {
+        doc = sorted_records[cursor].first;
+        rid = sorted_records[cursor].second;
+        cursor++;
+        return true;
+    }
+    return false;
+}
+
+void SortExecutor::close() {
+    child->close();
+}
+
+// ======================================================================
+// AggregationExecutor Implementation
+// ======================================================================
+
+AggregationExecutor::AggregationExecutor(std::unique_ptr<AbstractExecutor> ch, const std::string& col, AggType t, const std::string& grp)
+    : child(std::move(ch)), agg_col(col), group_col(grp), type(t) {}
+
+void AggregationExecutor::compute_aggregations() {
+    agg_results.clear();
+    child->init();
+
+    // Map: GroupBy Key -> (Accumulator, Count)
+    std::unordered_map<std::string, std::pair<int, int>> groups;
+
+    Document doc;
+    RecordID rid;
+    while (child->next(doc, rid)) {
+        std::string grp_key = "";
+        if (!group_col.empty()) {
+            Variant grp_val;
+            if (doc.get_field(group_col, grp_val)) {
+                if (grp_val.type == VariantType::STRING) grp_key = grp_val.get_string();
+                else if (grp_val.type == VariantType::INT) grp_key = std::to_string(grp_val.get_int());
+            }
+        }
+
+        Variant agg_val;
+        int val = 0;
+        if (doc.get_field(agg_col, agg_val) && agg_val.type == VariantType::INT) {
+            val = agg_val.get_int();
+        }
+
+        if (groups.find(grp_key) == groups.end()) {
+            groups[grp_key] = { val, 1 };
+        } else {
+            auto& p = groups[grp_key];
+            p.second++; // Increment count
+            if (type == AggType::SUM || type == AggType::AVG) {
+                p.first += val;
+            } else if (type == AggType::MIN) {
+                p.first = std::min(p.first, val);
+            } else if (type == AggType::MAX) {
+                p.first = std::max(p.first, val);
+            }
+        }
+    }
+    child->close();
+
+    // Create result documents
+    for (const auto& pair : groups) {
+        Document res_doc;
+        if (!group_col.empty()) {
+            res_doc.set_field(group_col, Variant(pair.first));
+        }
+
+        int final_val = 0;
+        if (type == AggType::SUM) final_val = pair.second.first;
+        else if (type == AggType::COUNT) final_val = pair.second.second;
+        else if (type == AggType::MIN || type == AggType::MAX) final_val = pair.second.first;
+        else if (type == AggType::AVG) {
+            final_val = pair.second.second > 0 ? (pair.second.first / pair.second.second) : 0;
+        }
+
+        res_doc.set_field("result", Variant(final_val));
+        agg_results.push_back(res_doc);
+    }
+}
+
+void AggregationExecutor::init() {
+    compute_aggregations();
+    cursor = 0;
+    Logger::get_instance().info("Executor", "AggregationExecutor computed aggregations. Groups count=" + std::to_string(agg_results.size()));
+}
+
+bool AggregationExecutor::next(Document& doc, RecordID& rid) {
+    if (cursor < agg_results.size()) {
+        doc = agg_results[cursor++];
+        rid = { 0, 0 };
+        return true;
+    }
+    return false;
+}
+
+void AggregationExecutor::close() {
+    // Already closed child during compute_aggregations
+}
+
 } // namespace FenrirDB

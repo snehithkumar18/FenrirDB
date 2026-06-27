@@ -74,6 +74,85 @@ public:
     void close() override;
 };
 
+class NestedLoopJoinExecutor : public AbstractExecutor {
+private:
+    std::unique_ptr<AbstractExecutor> outer;
+    std::unique_ptr<AbstractExecutor> inner;
+    std::string outer_col;
+    std::string inner_col;
+    Document outer_doc;
+    RecordID outer_rid;
+    bool has_outer = false;
+
+public:
+    NestedLoopJoinExecutor(std::unique_ptr<AbstractExecutor> out, std::unique_ptr<AbstractExecutor> in,
+                           const std::string& out_c, const std::string& in_c);
+    void init() override;
+    bool next(Document& doc, RecordID& rid) override;
+    void close() override;
+};
+
+class HashJoinExecutor : public AbstractExecutor {
+private:
+    std::unique_ptr<AbstractExecutor> outer;
+    std::unique_ptr<AbstractExecutor> inner;
+    std::string outer_col;
+    std::string inner_col;
+    std::unordered_map<std::string, std::vector<Document>> hash_table;
+    size_t cursor = 0;
+    std::vector<Document> matched_docs;
+
+    void build_hash_table();
+
+public:
+    HashJoinExecutor(std::unique_ptr<AbstractExecutor> out, std::unique_ptr<AbstractExecutor> in,
+                     const std::string& out_c, const std::string& in_c);
+    void init() override;
+    bool next(Document& doc, RecordID& rid) override;
+    void close() override;
+};
+
+class SortExecutor : public AbstractExecutor {
+private:
+    std::unique_ptr<AbstractExecutor> child;
+    std::string sort_col;
+    bool ascending;
+    std::vector<std::pair<Document, RecordID>> sorted_records;
+    size_t cursor = 0;
+
+public:
+    SortExecutor(std::unique_ptr<AbstractExecutor> ch, const std::string& col, bool asc = true);
+    void init() override;
+    bool next(Document& doc, RecordID& rid) override;
+    void close() override;
+};
+
+enum class AggType {
+    SUM,
+    AVG,
+    COUNT,
+    MIN,
+    MAX
+};
+
+class AggregationExecutor : public AbstractExecutor {
+private:
+    std::unique_ptr<AbstractExecutor> child;
+    std::string agg_col;
+    std::string group_col;
+    AggType type;
+    std::vector<Document> agg_results;
+    size_t cursor = 0;
+
+    void compute_aggregations();
+
+public:
+    AggregationExecutor(std::unique_ptr<AbstractExecutor> ch, const std::string& col, AggType t, const std::string& grp = "");
+    void init() override;
+    bool next(Document& doc, RecordID& rid) override;
+    void close() override;
+};
+
 class QueryPlanner {
 private:
     DiskManager& disk_mgr;
