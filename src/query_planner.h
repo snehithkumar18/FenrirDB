@@ -153,6 +153,48 @@ public:
     void close() override;
 };
 
+class ProjectionExecutor : public AbstractExecutor {
+private:
+    std::unique_ptr<AbstractExecutor> child;
+    std::vector<std::string> select_fields;
+
+public:
+    ProjectionExecutor(std::unique_ptr<AbstractExecutor> ch, const std::vector<std::string>& fields);
+    void init() override;
+    bool next(Document& doc, RecordID& rid) override;
+    void close() override;
+};
+
+class HavingExecutor : public AbstractExecutor {
+private:
+    std::unique_ptr<AbstractExecutor> child;
+    std::string agg_field;
+    QueryOp op;
+    Variant val;
+
+public:
+    HavingExecutor(std::unique_ptr<AbstractExecutor> ch, const std::string& field, QueryOp o, const Variant& v);
+    void init() override;
+    bool next(Document& doc, RecordID& rid) override;
+    void close() override;
+};
+
+class DistinctExecutor : public AbstractExecutor {
+private:
+    std::unique_ptr<AbstractExecutor> child;
+    std::vector<std::string> distinct_fields;
+    std::vector<Document> unique_docs;
+    size_t cursor = 0;
+
+    void build_unique_set();
+
+public:
+    DistinctExecutor(std::unique_ptr<AbstractExecutor> ch, const std::vector<std::string>& fields);
+    void init() override;
+    bool next(Document& doc, RecordID& rid) override;
+    void close() override;
+};
+
 class QueryPlanner {
 private:
     DiskManager& disk_mgr;

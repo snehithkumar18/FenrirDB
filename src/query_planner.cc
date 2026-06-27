@@ -461,4 +461,119 @@ void AggregationExecutor::close() {
     // Already closed child during compute_aggregations
 }
 
+// ======================================================================
+// ProjectionExecutor Implementation
+// ======================================================================
+
+ProjectionExecutor::ProjectionExecutor(std::unique_ptr<AbstractExecutor> ch, const std::vector<std::string>& fields)
+    : child(std::move(ch)), select_fields(fields) {}
+
+void ProjectionExecutor::init() {
+    child->init();
+    Logger::get_instance().info("Executor", "ProjectionExecutor initialized.");
+}
+
+bool ProjectionExecutor::next(Document& doc, RecordID& rid) {
+    Document child_doc;
+    if (child->next(child_doc, rid)) {
+        doc = Document(); // Clear doc
+        for (const auto& field : select_fields) {
+            Variant val;
+            if (child_doc.get_field(field, val)) {
+                doc.set_field(field, val);
+            }
+        }
+        return true;
+    }
+    return false;
+}
+
+void ProjectionExecutor::close() {
+    child->close();
+}
+
+// ======================================================================
+// HavingExecutor Implementation
+// ======================================================================
+
+HavingExecutor::HavingExecutor(std::unique_ptr<AbstractExecutor> ch, const std::string& field, QueryOp o, const Variant& v)
+    : child(std::move(ch)), agg_field(field), op(o), val(v) {}
+
+void HavingExecutor::init() {
+    child->init();
+    Logger::get_instance().info("Executor", "HavingExecutor initialized.");
+}
+
+bool HavingExecutor::next(Document& doc, RecordID& rid) {
+    while (child->next(doc, rid)) {
+        Variant doc_val;
+        if (doc.get_field(agg_field, doc_val)) {
+            if (val.type == VariantType::INT && doc_val.type == VariantType::INT) {
+                int left = doc_val.get_int();
+                int right = val.get_int();
+                if (op == QueryOp::EQ && left == right) return true;
+                if (op == QueryOp::GT && left > right) return true;
+                if (op == QueryOp::LT && left < right) return true;
+            }
+        }
+    }
+    return false;
+}
+
+void HavingExecutor::close() {
+    child->close();
+}
+
+// ======================================================================
+// DistinctExecutor Implementation
+// ======================================================================
+
+DistinctExecutor::DistinctExecutor(std::unique_ptr<AbstractExecutor> ch, const std::vector<std::string>& fields)
+    : child(std::move(ch)), distinct_fields(fields) {}
+
+void DistinctExecutor::build_unique_set() {
+    unique_docs.clear();
+    child->init();
+
+    std::vector<std::string> seen_keys;
+
+    Document doc;
+    RecordID rid;
+    while (child->next(doc, rid)) {
+        std::string concat_key = "";
+        for (const auto& field : distinct_fields) {
+            Variant val;
+            if (doc.get_field(field, val)) {
+                if (val.type == VariantType::STRING) concat_key += val.get_string() + "#";
+                else if (val.type == VariantType::INT) concat_key += std::to_string(val.get_int()) + "#";
+            }
+        }
+
+        if (std::find(seen_keys.begin(), seen_keys.end(), concat_key) == seen_keys.end()) {
+            seen_keys.push_back(concat_key);
+            unique_docs.push_back(doc);
+        }
+    }
+    child->close();
+}
+
+void DistinctExecutor::init() {
+    build_unique_set();
+    cursor = 0;
+    Logger::get_instance().info("Executor", "DistinctExecutor initialized. Unique records count=" + std::to_string(unique_docs.size()));
+}
+
+bool DistinctExecutor::next(Document& doc, RecordID& rid) {
+    if (cursor < unique_docs.size()) {
+        doc = unique_docs[cursor++];
+        rid = { 0, 0 };
+        return true;
+    }
+    return false;
+}
+
+void DistinctExecutor::close() {
+    // Already closed child during build_unique_set
+}
+
 } // namespace FenrirDB
