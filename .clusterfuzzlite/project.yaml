@@ -1,1 +1,4 @@
 language: c++
+fuzz_targets:
+  - fuzz_query
+  - fuzz_storage
