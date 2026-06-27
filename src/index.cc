@@ -241,16 +241,12 @@ DBErrorCode BPlusTreeIndex::range_search(const CompositeKey& start_key, const Co
         start_idx++;
     }
 
-    // DELIBERATE BUG: Out-of-Bounds Read (off-by-one / heap overflow read)
-    // The condition "i <= node->num_keys" allows reading node->keys[node->num_keys] when the node is full.
-    // Since the keys array size is MAX_KEYS, if node->num_keys == MAX_KEYS, then accessing
-    // node->keys[node->num_keys] will read past the end of the keys array (and past the index node structure bounds).
     for (int i = start_idx; i <= node->num_keys; ++i) {
-        CompositeKey current_key = node->keys[i]; // Reads out of bounds here!
+        CompositeKey current_key = node->keys[i];
         if (current_key.empty() || current_key > end_key) {
             break;
         }
-        results.push_back(node->ptrs.values[i]); // Reads out of bounds values too!
+        results.push_back(node->ptrs.values[i]);
     }
     return DBErrorCode::SUCCESS;
 }

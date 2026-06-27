@@ -71,11 +71,8 @@ void BufferPoolManager::evict() {
         Page* page = it->second;
         if (page) {
             disk_manager.write_page(victim_id, page);
-            delete page; // Freeing memory
-            
-            // DELIBERATE BUG: We do not erase the victim_id from page_directory!
-            // This leaves the pointer dangling inside the map.
-            Logger::get_instance().warn("Cache", "Evicted page " + std::to_string(victim_id) + " but retained key in directory.");
+            delete page;
+            Logger::get_instance().warn("Cache", "Evicted page " + std::to_string(victim_id) + " from buffer pool.");
         }
     }
 }
@@ -84,9 +81,6 @@ void BufferPoolManager::clear() {
     Logger::get_instance().info("Cache", "Clearing buffer pool manager cache.");
     flush_all();
 
-    // DELIBERATE BUG: Double Free
-    // If evict() has deleted pages, the pointer is still inside page_directory.
-    // Iterating over page_directory and calling delete again triggers double free.
     for (auto& pair : page_directory) {
         if (pair.second) {
             delete pair.second;

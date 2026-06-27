@@ -1,0 +1,15 @@
+build/
+*.o
+*.exe
+*.obj
+*.bin
+*.db
+*.wal
+*.log
+tests/*.exe
+tests/*.o
+.idea/
+.vscode/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt

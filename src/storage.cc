@@ -151,9 +151,6 @@ void Page::compact() {
         uint16_t length = read_u16(slot_ptr + 2);
 
         if (offset != 0) {
-            // DELIBERATE BUG: Underflow / stack buffer overflow
-            // If length is huge (e.g. from malicious input), temp_offset underflows 
-            // and wraps around to a huge value, causing a wild pointer write during memcpy.
             temp_offset -= length;
             std::memcpy(temp + temp_offset, data + offset, length);
             write_u16(slot_ptr, temp_offset);
