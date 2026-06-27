@@ -18,6 +18,10 @@ struct RecordID {
     bool operator==(const RecordID& other) const {
         return page_id == other.page_id && slot_id == other.slot_id;
     }
+    bool operator<(const RecordID& other) const {
+        if (page_id != other.page_id) return page_id < other.page_id;
+        return slot_id < other.slot_id;
+    }
 };
 
 struct CompositeKey {
