@@ -31,6 +31,7 @@ set(DB_SOURCES
     src/query_engine_compiler_window_agg.cc
     src/query_engine_compiler_window_ranking.cc
     src/query_engine_compiler_recursive.cc
+    src/query_engine_compiler_pivot.cc
 )
 
 # Core Shell executable
@@ -68,6 +69,7 @@ add_executable(test_window tests/test_window.cc ${DB_SOURCES})
 add_executable(test_window_agg tests/test_window_agg.cc ${DB_SOURCES})
 add_executable(test_window_ranking tests/test_window_ranking.cc ${DB_SOURCES})
 add_executable(test_recursive_cte tests/test_recursive_cte.cc ${DB_SOURCES})
+add_executable(test_pivot tests/test_pivot.cc ${DB_SOURCES})
 
 if(DEFINED ENV{LIB_FUZZING_ENGINE})
     # Platform build mode
