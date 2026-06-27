@@ -6,7 +6,13 @@ $CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/cache.cc -o cache.o
 $CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/index.cc -o index.o
 $CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/query.cc -o query.o
 $CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/database.cc -o database.o
+$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/wal.cc -o wal.o
+$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/lock_manager.cc -o lock_manager.o
+$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/sql_parser.cc -o sql_parser.o
+$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/json_parser.cc -o json_parser.o
+$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/query_planner.cc -o query_planner.o
+$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/transaction_manager.cc -o transaction_manager.o
 
 # Compile fuzz targets and link with the fuzzing engine
-$CXX $CXXFLAGS -std=c++17 -Isrc/ fuzz/fuzz_query.cc storage.o cache.o index.o query.o database.o -o $OUT/fuzz_query $LIB_FUZZING_ENGINE
-$CXX $CXXFLAGS -std=c++17 -Isrc/ fuzz/fuzz_storage.cc storage.o cache.o index.o query.o database.o -o $OUT/fuzz_storage $LIB_FUZZING_ENGINE
+$CXX $CXXFLAGS -std=c++17 -Isrc/ fuzz/fuzz_query.cc storage.o cache.o index.o query.o database.o wal.o lock_manager.o sql_parser.o json_parser.o query_planner.o transaction_manager.o -o $OUT/fuzz_query $LIB_FUZZING_ENGINE
+$CXX $CXXFLAGS -std=c++17 -Isrc/ fuzz/fuzz_storage.cc storage.o cache.o index.o query.o database.o wal.o lock_manager.o sql_parser.o json_parser.o query_planner.o transaction_manager.o -o $OUT/fuzz_storage $LIB_FUZZING_ENGINE
