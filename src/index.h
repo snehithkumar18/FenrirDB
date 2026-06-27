@@ -38,7 +38,10 @@ private:
     BufferPoolManager& cache_manager;
     uint32_t root_page_id;
 
-    uint32_t find_leaf_page(uint32_t current_page_id, const std::string& key);
+    uint32_t find_leaf_page(uint32_t current_page_id, const std::string& key, std::vector<uint32_t>* path = nullptr);
+    void insert_into_parent(uint32_t left_id, const std::string& key, uint32_t right_id, std::vector<uint32_t>& path);
+    void split_leaf(uint32_t leaf_id, const std::string& key, const RecordID& value, std::vector<uint32_t>& path);
+    void split_internal(uint32_t parent_id, const std::string& key, uint32_t child_id, std::vector<uint32_t>& path);
 
 public:
     BPlusTreeIndex(DiskManager& disk_mgr, BufferPoolManager& cache_mgr, uint32_t root_id);
