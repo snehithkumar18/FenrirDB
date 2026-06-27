@@ -25,6 +25,10 @@ public:
     DBErrorCode open(const std::string& filepath);
     void close();
 
+    DiskManager* get_disk_manager() const { return disk_manager.get(); }
+    BufferPoolManager* get_cache_manager() const { return cache_manager.get(); }
+    BPlusTreeIndex* get_index() const { return index.get(); }
+
     DBErrorCode insert(const std::string& key, const Document& doc);
     DBErrorCode get(const std::string& key, Document& doc);
     DBErrorCode find_range(const std::string& start_key, const std::string& end_key, std::vector<Document>& results);
