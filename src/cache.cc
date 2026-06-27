@@ -20,7 +20,7 @@ Page* BufferPoolManager::fetch_page(uint32_t page_id) {
         // Move to the back of LRU queue
         lru_queue.erase(std::remove(lru_queue.begin(), lru_queue.end(), page_id), lru_queue.end());
         lru_queue.push_back(page_id);
-        return it->second; // DELIBERATE UAF: Might return a freed page pointer
+        return it->second;
     }
 
     Logger::get_instance().info("Cache", "Cache miss for page: " + std::to_string(page_id));
