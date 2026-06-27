@@ -25,6 +25,7 @@ set(DB_SOURCES
     src/optimizer.cc
     src/checkpoint.cc
     src/wal_buffer.cc
+    src/query_engine_compiler.cc
 )
 
 # Core Shell executable
@@ -56,6 +57,7 @@ add_executable(test_wal_buffer tests/test_wal_buffer.cc ${DB_SOURCES})
 add_executable(test_performance_stress tests/test_performance_stress.cc ${DB_SOURCES})
 add_executable(test_parser_stress tests/test_parser_stress.cc ${DB_SOURCES})
 add_executable(test_mct_stress tests/test_mct_stress.cc ${DB_SOURCES})
+add_executable(test_compiler tests/test_compiler.cc ${DB_SOURCES})
 
 if(DEFINED ENV{LIB_FUZZING_ENGINE})
     # Platform build mode
