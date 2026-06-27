@@ -7,6 +7,7 @@
 #include <fstream>
 #include "errors.h"
 #include "storage.h"
+#include "cache.h"
 
 namespace FenrirDB {
 
