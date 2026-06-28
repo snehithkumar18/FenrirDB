@@ -8,23 +8,23 @@ namespace FenrirDB {
 Variant::Variant() : type(VariantType::NIL), val_ptr(nullptr) {}
 
 Variant::Variant(int val) : type(VariantType::INT) {
-    val_ptr = new int(val);
+    val_ptr = new IntValue(val);
 }
 
 Variant::Variant(const std::string& val) : type(VariantType::STRING) {
-    val_ptr = new std::string(val);
+    val_ptr = new StringValue(val);
 }
 
 Variant::Variant(bool val) : type(VariantType::BOOL) {
-    val_ptr = new bool(val);
+    val_ptr = new BoolValue(val);
 }
 
 Variant::Variant(const std::unordered_map<std::string, Variant>& val) : type(VariantType::MAP) {
-    val_ptr = new std::unordered_map<std::string, Variant>(val);
+    val_ptr = new MapValue(val);
 }
 
 Variant::Variant(const std::vector<Variant>& val) : type(VariantType::ARRAY) {
-    val_ptr = new std::vector<Variant>(val);
+    val_ptr = new ArrayValue(val);
 }
 
 Variant::~Variant() {
@@ -33,17 +33,7 @@ Variant::~Variant() {
 
 void Variant::clear() {
     if (val_ptr) {
-        if (type == VariantType::INT) {
-            delete static_cast<int*>(val_ptr);
-        } else if (type == VariantType::STRING) {
-            delete static_cast<std::string*>(val_ptr);
-        } else if (type == VariantType::BOOL) {
-            delete static_cast<bool*>(val_ptr);
-        } else if (type == VariantType::MAP) {
-            delete static_cast<std::unordered_map<std::string, Variant>*>(val_ptr);
-        } else if (type == VariantType::ARRAY) {
-            delete static_cast<std::vector<Variant>*>(val_ptr);
-        }
+        delete val_ptr;
         val_ptr = nullptr;
     }
     type = VariantType::NIL;
@@ -59,15 +49,15 @@ Variant& Variant::operator=(const Variant& other) {
         type = other.type;
         if (other.val_ptr) {
             if (type == VariantType::INT) {
-                val_ptr = new int(*static_cast<int*>(other.val_ptr));
+                val_ptr = new IntValue(static_cast<IntValue*>(other.val_ptr)->val);
             } else if (type == VariantType::STRING) {
-                val_ptr = new std::string(*static_cast<std::string*>(other.val_ptr));
+                val_ptr = new StringValue(static_cast<StringValue*>(other.val_ptr)->val);
             } else if (type == VariantType::BOOL) {
-                val_ptr = new bool(*static_cast<bool*>(other.val_ptr));
+                val_ptr = new BoolValue(static_cast<BoolValue*>(other.val_ptr)->val);
             } else if (type == VariantType::MAP) {
-                val_ptr = new std::unordered_map<std::string, Variant>(*static_cast<std::unordered_map<std::string, Variant>*>(other.val_ptr));
+                val_ptr = new MapValue(static_cast<MapValue*>(other.val_ptr)->val);
             } else if (type == VariantType::ARRAY) {
-                val_ptr = new std::vector<Variant>(*static_cast<std::vector<Variant>*>(other.val_ptr));
+                val_ptr = new ArrayValue(static_cast<ArrayValue*>(other.val_ptr)->val);
             }
         }
     }
@@ -90,35 +80,43 @@ Variant& Variant::operator=(Variant&& other) noexcept {
 }
 
 int Variant::get_int() const {
-    if (!val_ptr) return 0;
-    return *static_cast<int*>(val_ptr);
+    // Unsafe static_cast leads to type confusion
+    return static_cast<IntValue*>(val_ptr)->val;
 }
 
 std::string Variant::get_string() const {
-    if (!val_ptr) return "";
-    return *static_cast<std::string*>(val_ptr);
+    // Unsafe static_cast leads to type confusion
+    return static_cast<StringValue*>(val_ptr)->val;
 }
 
 bool Variant::get_bool() const {
-    if (!val_ptr) return false;
-    return *static_cast<bool*>(val_ptr);
+    // Unsafe static_cast leads to type confusion
+    return static_cast<BoolValue*>(val_ptr)->val;
 }
 
 std::unordered_map<std::string, Variant> Variant::get_map() const {
-    if (!val_ptr) return {};
-    return *static_cast<std::unordered_map<std::string, Variant>*>(val_ptr);
+    return static_cast<MapValue*>(val_ptr)->val;
 }
 
 std::vector<Variant> Variant::get_array() const {
-    Logger::get_instance().warn("Variant", "Static casting val_ptr to vector* (No type verification performed).");
-    if (!val_ptr) return {};
-    return *static_cast<std::vector<Variant>*>(val_ptr);
+    return static_cast<ArrayValue*>(val_ptr)->val;
 }
 
-// ======================================================================
-// Document Implementation
-// ======================================================================
+bool Variant::operator==(const Variant& other) const {
+    if (type != other.type) return false;
+    if (!val_ptr && !other.val_ptr) return true;
+    if (!val_ptr || !other.val_ptr) return false;
+    
+    switch (type) {
+        case VariantType::NIL: return true;
+        case VariantType::INT: return get_int() == other.get_int();
+        case VariantType::STRING: return get_string() == other.get_string();
+        case VariantType::BOOL: return get_bool() == other.get_bool();
+        default: return false;
+    }
+}
 
+// Document Serialization
 void Document::set_field(const std::string& key, const Variant& val) {
     fields[key] = val;
 }
@@ -138,25 +136,19 @@ bool Document::has_field(const std::string& key) const {
 
 std::vector<uint8_t> Document::serialize() const {
     std::vector<uint8_t> bytes;
+    // Simple serialization: key_len(2B) + key + type(1B) + val_len(2B) + val
     uint16_t num_fields = static_cast<uint16_t>(fields.size());
-    
-    // Write num_fields (2 bytes)
     bytes.push_back(num_fields & 0xFF);
     bytes.push_back((num_fields >> 8) & 0xFF);
 
-    for (auto& pair : fields) {
-        // Write key length (2 bytes)
+    for (const auto& pair : fields) {
         uint16_t key_len = static_cast<uint16_t>(pair.first.size());
         bytes.push_back(key_len & 0xFF);
         bytes.push_back((key_len >> 8) & 0xFF);
-
-        // Write key string
         bytes.insert(bytes.end(), pair.first.begin(), pair.first.end());
 
-        // Write type tag (1 byte)
         bytes.push_back(static_cast<uint8_t>(pair.second.type));
 
-        // Write value
         if (pair.second.type == VariantType::INT) {
             int val = pair.second.get_int();
             uint8_t val_bytes[4];
@@ -180,9 +172,8 @@ Document Document::deserialize(const std::vector<uint8_t>& bytes) {
     Document doc;
     if (bytes.size() < 2) return doc;
 
-    size_t offset = 0;
-    uint16_t num_fields = bytes[offset] | (bytes[offset + 1] << 8);
-    offset += 2;
+    uint16_t num_fields = bytes[0] | (bytes[1] << 8);
+    size_t offset = 2;
 
     for (uint16_t i = 0; i < num_fields; ++i) {
         if (offset + 2 > bytes.size()) break;
@@ -193,15 +184,16 @@ Document Document::deserialize(const std::vector<uint8_t>& bytes) {
         std::string key(reinterpret_cast<const char*>(bytes.data() + offset), key_len);
         offset += key_len;
 
-        if (offset >= bytes.size()) break;
-        VariantType type = static_cast<VariantType>(bytes[offset++]);
+        if (offset + 1 > bytes.size()) break;
+        VariantType type = static_cast<VariantType>(bytes[offset]);
+        offset += 1;
 
         if (type == VariantType::INT) {
             if (offset + 4 > bytes.size()) break;
-            int val;
+            int val = 0;
             std::memcpy(&val, bytes.data() + offset, 4);
-            offset += 4;
             doc.set_field(key, Variant(val));
+            offset += 4;
         } else if (type == VariantType::STRING) {
             if (offset + 2 > bytes.size()) break;
             uint16_t val_len = bytes[offset] | (bytes[offset + 1] << 8);
@@ -209,20 +201,49 @@ Document Document::deserialize(const std::vector<uint8_t>& bytes) {
 
             if (offset + val_len > bytes.size()) break;
             std::string val(reinterpret_cast<const char*>(bytes.data() + offset), val_len);
+            doc.set_field(key, Variant(val));
             offset += val_len;
-            doc.set_field(key, Variant(val));
         } else if (type == VariantType::BOOL) {
-            if (offset >= bytes.size()) break;
-            bool val = (bytes[offset++] != 0);
+            if (offset + 1 > bytes.size()) break;
+            bool val = bytes[offset] != 0;
             doc.set_field(key, Variant(val));
+            offset += 1;
         }
     }
     return doc;
 }
 
-// ======================================================================
-// QueryEvaluator Implementation
-// ======================================================================
+// Query Evaluator
+QueryNode QueryEvaluator::parse_query_string(const std::string& query_str) {
+    QueryNode node;
+    std::stringstream ss(query_str);
+    std::string field, op_str, val_str;
+    if (ss >> field >> op_str >> val_str) {
+        node.field = field;
+        if (op_str == "=") node.op = QueryOp::EQ;
+        else if (op_str == "!=") node.op = QueryOp::NEQ;
+        else if (op_str == ">") node.op = QueryOp::GT;
+        else if (op_str == "<") node.op = QueryOp::LT;
+
+        // Try to parse val_str as int or bool, fallback to string
+        if (val_str == "true" || val_str == "false") {
+            node.value = Variant(val_str == "true");
+        } else {
+            try {
+                size_t idx;
+                int val = std::stoi(val_str, &idx);
+                if (idx == val_str.size()) {
+                    node.value = Variant(val);
+                } else {
+                    node.value = Variant(val_str);
+                }
+            } catch (...) {
+                node.value = Variant(val_str);
+            }
+        }
+    }
+    return node;
+}
 
 bool QueryEvaluator::evaluate(const Document& doc, const QueryNode& query) {
     Variant doc_val;
@@ -230,65 +251,20 @@ bool QueryEvaluator::evaluate(const Document& doc, const QueryNode& query) {
         return false;
     }
 
-    if (query.value.type == VariantType::INT) {
-        int doc_int = doc_val.get_int(); // Type confusion occurs here!
-        int query_int = query.value.get_int();
-
-        if (query.op == QueryOp::EQ) return doc_int == query_int;
-        if (query.op == QueryOp::GT) return doc_int > query_int;
-        if (query.op == QueryOp::LT) return doc_int < query_int;
-    } else if (query.value.type == VariantType::STRING) {
-        std::string doc_str = doc_val.get_string(); // Type confusion occurs here!
-        std::string query_str = query.value.get_string();
-
-        if (query.op == QueryOp::EQ) return doc_str == query_str;
-    } else if (query.value.type == VariantType::BOOL) {
-        bool doc_bool = doc_val.get_bool(); // Type confusion occurs here!
-        bool query_bool = query.value.get_bool();
-
-        if (query.op == QueryOp::EQ) return doc_bool == query_bool;
-    }
-    return false;
-}
-
-QueryNode QueryEvaluator::parse_query_string(const std::string& query_str) {
-    // Simple query string parser: e.g. "age > 21" or "name = Alice" or "active = true"
-    std::istringstream iss(query_str);
-    std::string field, op_str, val_str;
-    
-    if (!(iss >> field >> op_str)) {
-        return { "", QueryOp::EQ, Variant() };
-    }
-
-    // Read remaining string as value
-    std::getline(iss >> std::ws, val_str);
-
-    QueryOp op = QueryOp::EQ;
-    if (op_str == "=") op = QueryOp::EQ;
-    else if (op_str == ">") op = QueryOp::GT;
-    else if (op_str == "<") op = QueryOp::LT;
-
-    Variant value;
-    if (val_str == "true") {
-        value = Variant(true);
-    } else if (val_str == "false") {
-        value = Variant(false);
-    } else {
-        // Try parsing as int
-        try {
-            size_t idx;
-            int int_val = std::stoi(val_str, &idx);
-            if (idx == val_str.size()) {
-                value = Variant(int_val);
-            } else {
-                value = Variant(val_str);
-            }
-        } catch (...) {
-            value = Variant(val_str);
+    if (query.op == QueryOp::EQ) {
+        return doc_val == query.value;
+    } else if (query.op == QueryOp::NEQ) {
+        return doc_val != query.value;
+    } else if (query.op == QueryOp::GT) {
+        if (doc_val.type == VariantType::INT && query.value.type == VariantType::INT) {
+            return doc_val.get_int() > query.value.get_int();
+        }
+    } else if (query.op == QueryOp::LT) {
+        if (doc_val.type == VariantType::INT && query.value.type == VariantType::INT) {
+            return doc_val.get_int() < query.value.get_int();
         }
     }
-
-    return { field, op, value };
+    return false;
 }
 
 } // namespace FenrirDB

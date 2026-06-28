@@ -24,11 +24,13 @@ DBErrorCode Database::open(const std::string& filepath) {
     }
 
     index = std::make_unique<BPlusTreeIndex>(*disk_manager, *cache_manager, root_index_page);
+    last_accessed_page_ = nullptr;
     Logger::get_instance().info("Database", "Opened database file: " + filepath);
     return DBErrorCode::SUCCESS;
 }
 
 void Database::close() {
+    last_accessed_page_ = nullptr;
     if (cache_manager) {
         cache_manager->flush_all();
         cache_manager->clear();
@@ -55,6 +57,7 @@ DBErrorCode Database::insert(const std::string& key, const Document& doc) {
     if (!page) {
         return DBErrorCode::ERR_PAGE_NOT_FOUND;
     }
+    last_accessed_page_ = page;
 
     new (page) Page(doc_page_id);
 
@@ -83,8 +86,14 @@ DBErrorCode Database::get(const std::string& key, Document& doc) {
         return res;
     }
 
-    Page* page = cache_manager->fetch_page(loc.page_id);
-    if (!page) return DBErrorCode::ERR_PAGE_NOT_FOUND;
+    Page* page = nullptr;
+    if (last_accessed_page_ && last_accessed_page_->get_page_id() == loc.page_id) {
+        page = last_accessed_page_;
+    } else {
+        page = cache_manager->fetch_page(loc.page_id);
+        if (!page) return DBErrorCode::ERR_PAGE_NOT_FOUND;
+        last_accessed_page_ = page;
+    }
 
     std::vector<uint8_t> record_bytes;
     res = page->get_record(loc.slot_id, record_bytes);

@@ -17,6 +17,7 @@ private:
     std::unique_ptr<BufferPoolManager> cache_manager;
     std::unique_ptr<BPlusTreeIndex> index;
     uint32_t root_index_page = 0;
+    Page* last_accessed_page_ = nullptr;
 
 public:
     Database() = default;

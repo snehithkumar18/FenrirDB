@@ -3,6 +3,12 @@
 #include <cstring>
 #include <fstream>
 #include <algorithm>
+#include <cstdlib>
+#if defined(_WIN32)
+#include <malloc.h>
+#else
+#include <alloca.h>
+#endif
 
 namespace FenrirDB {
 
@@ -110,7 +116,7 @@ DBErrorCode Page::get_record(uint16_t slot_id, std::vector<uint8_t>& record_data
     uint16_t offset = read_u16(slot_ptr);
     uint16_t length = read_u16(slot_ptr + 2);
 
-    if (offset == 0 || offset >= PAGE_SIZE) {
+    if (offset == 0 || offset >= PAGE_SIZE || offset + length > PAGE_SIZE) {
         return DBErrorCode::ERR_RECORD_NOT_FOUND;
     }
 
@@ -129,6 +135,15 @@ DBErrorCode Page::delete_record(uint16_t slot_id) {
     write_u16(slot_ptr, 0);
     write_u16(slot_ptr + 2, 0);
 
+    // Injected Bug 4: memcpy-param-overlap when shifting slots left to fill the gap
+    uint8_t* dest = data + 8 + slot_id * sizeof(Slot);
+    uint8_t* src = dest + sizeof(Slot);
+    size_t len = (num_slots - slot_id - 1) * sizeof(Slot);
+    if (len > 0) {
+        std::memcpy(dest, src, len); // Overlapping memcpy!
+    }
+
+    write_u16(data + 4, num_slots - 1);
     return DBErrorCode::SUCCESS;
 }
 
@@ -144,13 +159,26 @@ void Page::compact() {
     uint16_t temp_offset = PAGE_SIZE;
 
     uint16_t num_slots = get_num_records();
+    // Injected Bug 3: Stack exhaustion via alloca with unchecked num_slots
+    uint16_t* slot_indices = static_cast<uint16_t*>(alloca(num_slots * sizeof(uint16_t)));
+    for (uint16_t i = 0; i < num_slots; ++i) {
+        slot_indices[i] = i;
+    }
 
     for (uint16_t i = 0; i < num_slots; ++i) {
-        uint8_t* slot_ptr = data + 8 + i * sizeof(Slot);
+        uint16_t idx = slot_indices[i];
+        uint8_t* slot_ptr = data + 8 + idx * sizeof(Slot);
         uint16_t offset = read_u16(slot_ptr);
         uint16_t length = read_u16(slot_ptr + 2);
 
         if (offset != 0) {
+            uint16_t slots_end = 8 + num_slots * sizeof(Slot);
+            if (offset < slots_end || offset + length > PAGE_SIZE || length > temp_offset || temp_offset - length < slots_end) {
+                // Corrupted slot, skip and mark as deleted
+                write_u16(slot_ptr, 0);
+                write_u16(slot_ptr + 2, 0);
+                continue;
+            }
             temp_offset -= length;
             std::memcpy(temp + temp_offset, data + offset, length);
             write_u16(slot_ptr, temp_offset);

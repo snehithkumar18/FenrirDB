@@ -72,6 +72,7 @@ void BufferPoolManager::evict() {
         if (page) {
             disk_manager.write_page(victim_id, page);
             delete page;
+            page_directory.erase(it); // Fix: Remove evicted page from the directory
             Logger::get_instance().warn("Cache", "Evicted page " + std::to_string(victim_id) + " from buffer pool.");
         }
     }

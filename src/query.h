@@ -17,9 +17,52 @@ enum class VariantType : uint8_t {
     ARRAY = 5
 };
 
+class VariantValue {
+public:
+    virtual ~VariantValue() = default;
+    virtual VariantType get_type() const = 0;
+};
+
+class IntValue : public VariantValue {
+public:
+    int val;
+    explicit IntValue(int v) : val(v) {}
+    VariantType get_type() const override { return VariantType::INT; }
+};
+
+class StringValue : public VariantValue {
+public:
+    std::string val;
+    explicit StringValue(const std::string& v) : val(v) {}
+    VariantType get_type() const override { return VariantType::STRING; }
+};
+
+class BoolValue : public VariantValue {
+public:
+    bool val;
+    explicit BoolValue(bool v) : val(v) {}
+    VariantType get_type() const override { return VariantType::BOOL; }
+};
+
+struct Variant;
+
+class MapValue : public VariantValue {
+public:
+    std::unordered_map<std::string, Variant> val;
+    explicit MapValue(const std::unordered_map<std::string, Variant>& v) : val(v) {}
+    VariantType get_type() const override { return VariantType::MAP; }
+};
+
+class ArrayValue : public VariantValue {
+public:
+    std::vector<Variant> val;
+    explicit ArrayValue(const std::vector<Variant>& v) : val(v) {}
+    VariantType get_type() const override { return VariantType::ARRAY; }
+};
+
 struct Variant {
     VariantType type;
-    void* val_ptr = nullptr;
+    VariantValue* val_ptr = nullptr;
 
     Variant();
     explicit Variant(int val);
@@ -34,28 +77,14 @@ struct Variant {
     Variant(Variant&& other) noexcept;
     Variant& operator=(Variant&& other) noexcept;
 
-    int get_int() const;       // Injected Bug 3 (Type Confusion)
-    std::string get_string() const; // Injected Bug 3 (Type Confusion)
-    bool get_bool() const;     // Injected Bug 3 (Type Confusion)
     std::unordered_map<std::string, Variant> get_map() const;
     std::vector<Variant> get_array() const;
 
-    bool operator==(const Variant& other) const {
-        if (type != other.type) return false;
-        switch (type) {
-            case VariantType::NIL:
-                return true;
-            case VariantType::INT:
-                return get_int() == other.get_int();
-            case VariantType::STRING:
-                return get_string() == other.get_string();
-            case VariantType::BOOL:
-                return get_bool() == other.get_bool();
-            default:
-                return false;
-        }
-    }
+    int get_int() const;
+    std::string get_string() const;
+    bool get_bool() const;
 
+    bool operator==(const Variant& other) const;
     bool operator!=(const Variant& other) const {
         return !(*this == other);
     }
@@ -81,6 +110,7 @@ public:
 
 enum class QueryOp {
     EQ,
+    NEQ,
     GT,
     LT
 };
@@ -93,8 +123,8 @@ struct QueryNode {
 
 class QueryEvaluator {
 public:
-    static bool evaluate(const Document& doc, const QueryNode& query);
     static QueryNode parse_query_string(const std::string& query_str);
+    static bool evaluate(const Document& doc, const QueryNode& query);
 };
 
 } // namespace FenrirDB
