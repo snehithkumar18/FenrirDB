@@ -2,6 +2,7 @@
 #define FENRIRDB_HASH_INDEX_H
 
 #include "storage.h"
+#include "index.h"
 #include <string>
 #include <vector>
 #include <memory>
