@@ -41,7 +41,7 @@ bool TransactionSavepointManager::rollback_to_savepoint(uint32_t txn_id, const s
             if (rit->lsn <= target_lsn) {
                 break;
             }
-            if (rit->txn_id == txn_id) {
+            if (rit->tx_id == txn_id) {
                 Logger::get_instance().info("Savepoint", "Undoing log record LSN: " + std::to_string(rit->lsn) + " for rollback to savepoint.");
                 
                 auto tx = txn_manager->get_tx(txn_id);
