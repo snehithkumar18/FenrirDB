@@ -55,8 +55,10 @@ set(DB_SOURCES
     src/storage_compressor.cc
     src/storage_compressor_huffman.cc
     src/storage_compressor_lzw.cc
+    src/statistics.cc
     src/transaction_isolation.cc
     src/transaction_manager_savepoint.cc
+    src/vectorized_executor.cc
     src/vectorized_executor_advanced.cc
 )
 

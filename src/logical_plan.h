@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include "query.h"
 
 namespace FenrirDB {
 
@@ -22,6 +23,7 @@ public:
     LogicalPlanType type;
     std::string description;
     std::vector<std::unique_ptr<LogicalPlanNode>> children;
+    QueryNode query;
 
     LogicalPlanNode(LogicalPlanType t, const std::string& desc)
         : type(t), description(desc) {}

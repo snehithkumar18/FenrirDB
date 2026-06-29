@@ -32,7 +32,7 @@ std::string SQLParserAdvanced::next_token() {
     return token;
 }
 
-bool SQLParserAdvanced::parse_statement(SQLStatement& stmt) {
+bool SQLParserAdvanced::parse_statement(SQLStatementAdvanced& stmt) {
     stmt.is_recursive_cte = false;
     stmt.has_window = false;
     stmt.has_agg = false;

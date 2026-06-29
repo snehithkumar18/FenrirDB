@@ -14,7 +14,7 @@ struct WindowSpec {
     std::string function_name;
 };
 
-struct SQLStatement {
+struct SQLStatementAdvanced {
     std::vector<std::string> select_cols;
     std::string table_name;
     QueryNode filter_clause;
@@ -45,7 +45,7 @@ public:
     explicit SQLParserAdvanced(const std::string& query);
     ~SQLParserAdvanced() = default;
 
-    bool parse_statement(SQLStatement& stmt);
+    bool parse_statement(SQLStatementAdvanced& stmt);
 };
 
 } // namespace FenrirDB

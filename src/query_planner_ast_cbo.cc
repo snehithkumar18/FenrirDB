@@ -19,10 +19,7 @@ PlanNode ASTCBOPass::compile_to_physical(const LogicalPlanNode* logical_node) {
         }
 
         // Generate base mock physical scan inputs
-        auto seq = std::make_unique<SeqScanExecutor>(table_name);
-        auto index = std::make_unique<IndexScanExecutor>(table_name, "id", QueryOp::EQ, Variant(0));
-
-        plan = cost_optimizer.find_best_scan(table_name, std::move(seq), std::move(index), true, 0.1);
+        plan = cost_optimizer.find_best_scan(table_name, nullptr, nullptr, true, 0.1);
         Logger::get_instance().info("ASTCBOPass", "Compiled SCAN to best physical option: " + plan.plan_description);
         return plan;
     }
@@ -46,11 +43,10 @@ PlanNode ASTCBOPass::compile_to_physical(const LogicalPlanNode* logical_node) {
     }
 
     // Default fallback scan node compilation
-    auto seq_fallback = std::make_unique<SeqScanExecutor>("users");
     plan.plan_description = "SeqScan(users)";
     plan.cost = 100.0;
     plan.card = 1000.0;
-    plan.physical_executor = std::move(seq_fallback);
+    plan.physical_executor = nullptr;
     return plan;
 }
 

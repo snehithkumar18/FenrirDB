@@ -1,5 +1,6 @@
 #include "vectorized_executor.h"
 #include "logger.h"
+#include <algorithm>
 
 namespace FenrirDB {
 
