@@ -158,9 +158,11 @@ std::shared_ptr<JsonSchemaNode> JsonSchemaValidator::parse_schema_object(const V
 }
 
 bool JsonSchemaValidator::parse_schema(const std::string& schema_json) {
-    JsonParser parser(schema_json);
-    Variant v;
-    if (!parser.parse(v)) {
+    JSONLexer lexer(schema_json);
+    std::vector<JSONToken> tokens = lexer.tokenize();
+    JSONParser parser(tokens);
+    Variant v = parser.parse();
+    if (v.type == VariantType::NIL) {
         Logger::get_instance().error("Schema", "Failed to parse schema JSON string.");
         return false;
     }
@@ -174,12 +176,11 @@ bool JsonSchemaValidator::validate_document(const Document& doc, std::vector<std
         return false;
     }
     // Convert document to variant representation
-    Variant doc_var;
     std::unordered_map<std::string, Variant> doc_map;
     for (const auto& pair : doc.get_fields()) {
         doc_map[pair.first] = pair.second;
     }
-    doc_var.set_map(doc_map);
+    Variant doc_var(doc_map);
     return root_node->validate(doc_var, errors);
 }
 

@@ -103,6 +103,7 @@ public:
     void set_field(const std::string& key, const Variant& val);
     bool get_field(const std::string& key, Variant& val) const;
     bool has_field(const std::string& key) const;
+    const std::unordered_map<std::string, Variant>& get_fields() const { return fields; }
 
     std::vector<uint8_t> serialize() const;
     static Document deserialize(const std::vector<uint8_t>& bytes);
