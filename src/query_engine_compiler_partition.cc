@@ -3,12 +3,12 @@
 
 namespace FenrirDB {
 
-PartitionManager::PartitionManager(const std::string& table, const std::string& col)
-    : base_table_name(table), partition_col(col) {
-    Logger::get_instance().info("Partition", "PartitionManager initialized on table: " + table + ", column: " + col);
+RangePartitionManager::RangePartitionManager(const std::string& table, const std::string& col)
+    : PartitionManager(table, col) {
+    Logger::get_instance().info("Partition", "RangePartitionManager initialized on table: " + table + ", column: " + col);
 }
 
-void PartitionManager::add_partition(const std::string& name, int min_v, int max_v) {
+void RangePartitionManager::add_partition(const std::string& name, int min_v, int max_v) {
     ranges.push_back({name, min_v, max_v});
     
     std::string db_file = base_table_name + "_" + name + ".db";
@@ -19,7 +19,7 @@ void PartitionManager::add_partition(const std::string& name, int min_v, int max
     Logger::get_instance().info("Partition", "Added range partition " + name + " [" + std::to_string(min_v) + ", " + std::to_string(max_v) + "]");
 }
 
-DBErrorCode PartitionManager::insert(const Document& doc) {
+DBErrorCode RangePartitionManager::insert(const Document& doc) {
     Variant v;
     if (!doc.get_field(partition_col, v) || v.type != VariantType::INT) {
         return DBErrorCode::ERR_INVALID_PARAMETER;
@@ -50,7 +50,7 @@ DBErrorCode PartitionManager::insert(const Document& doc) {
     return partition_dbs[matched_partition]->insert(key, doc);
 }
 
-std::vector<std::string> PartitionManager::prune_partitions(QueryOp op, const Variant& val) {
+std::vector<std::string> RangePartitionManager::prune_partitions(QueryOp op, const Variant& val) {
     std::vector<std::string> target_partitions;
     if (val.type != VariantType::INT) {
         // Can't prune without integer boundaries

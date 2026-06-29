@@ -17,11 +17,11 @@ struct Savepoint {
 class TransactionSavepointManager {
 private:
     std::unordered_map<uint32_t, std::vector<Savepoint>> savepoints;
-    WALManager* wal_manager;
+    LogManager* wal_manager;
     TransactionManager* txn_manager;
 
 public:
-    TransactionSavepointManager(WALManager* wal, TransactionManager* txn);
+    TransactionSavepointManager(LogManager* wal, TransactionManager* txn);
     ~TransactionSavepointManager() = default;
 
     void create_savepoint(uint32_t txn_id, const std::string& name);

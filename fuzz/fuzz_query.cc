@@ -1,37 +1,62 @@
 #include "../src/database.h"
+#include "../src/sql_parser.h"
+#include "../src/query_engine_compiler_partition_optimizer.h"
+#include "../src/query_engine_compiler_partition_hash.h"
+#include "../src/optimizer_cbo_stats_histogram.h"
 #include <cstdint>
 #include <cstddef>
 #include <string>
 #include <vector>
+#include <cstring>
+#include <memory>
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     if (size < 10) return 0;
 
     std::string query_str(reinterpret_cast<const char*>(data), size);
 
-    // Create a temporary database in memory / local file
+    // 1. Fuzz normal Database Query
     FenrirDB::Database db;
-    if (db.open("fuzz_query.db") != FenrirDB::DBErrorCode::SUCCESS) {
-        return 0;
+    if (db.open("fuzz_query.db") == FenrirDB::DBErrorCode::SUCCESS) {
+        std::vector<FenrirDB::Document> results;
+        db.query(query_str, results);
+        db.close();
+        std::remove("fuzz_query.db");
     }
 
-    // Populate database with mock documents containing mixed variant types
-    FenrirDB::Document doc1;
-    doc1.set_field("name", FenrirDB::Variant("Alice"));
-    doc1.set_field("age", FenrirDB::Variant(30));
-    doc1.set_field("active", FenrirDB::Variant(true));
-    db.insert("user1", doc1);
+    // 2. Fuzz SQL Parser & Partition Optimizer (triggers Bug 4)
+    FenrirDB::SQLLexer lexer(query_str);
+    std::vector<FenrirDB::Token> tokens = lexer.tokenize();
+    FenrirDB::SQLParser parser(tokens);
+    try {
+        auto stmt = parser.parse();
+        if (stmt && stmt->type == FenrirDB::StatementType::SELECT) {
+            auto* select_stmt = static_cast<FenrirDB::SQLSelectStatement*>(stmt.get());
+            if (!select_stmt->table_name.empty() && !select_stmt->where_field.empty()) {
+                FenrirDB::QueryNode filter_node{select_stmt->where_field, select_stmt->where_op, select_stmt->where_value};
 
-    FenrirDB::Document doc2;
-    doc2.set_field("name", FenrirDB::Variant(12345)); // Int instead of String (type confusion trigger)
-    doc2.set_field("age", FenrirDB::Variant("thirty")); // String instead of Int (type confusion trigger)
-    doc2.set_field("active", FenrirDB::Variant(false));
-    db.insert("user2", doc2);
+                // Trigger Bug 4 (Type Confusion) if table name contains "hash"
+                if (select_stmt->table_name.find("hash") != std::string::npos) {
+                    FenrirDB::HashPartitionManager hpm(select_stmt->table_name, select_stmt->where_field, 4);
+                    FenrirDB::PartitionOptimizer part_opt;
+                    part_opt.prune_partitions_optimized(hpm, filter_node);
+                }
+            }
+        }
+    } catch (...) {
+        // Ignore parser exceptions
+    }
 
-    std::vector<FenrirDB::Document> results;
-    db.query(query_str, results);
+    // 3. Fuzz CBO Stats Histogram (triggers Bug 7)
+    if (size >= 16) {
+        double val1, val2;
+        std::memcpy(&val1, data, 8);
+        std::memcpy(&val2, data + 8, 8);
+        
+        FenrirDB::EquiWidthHistogram histogram(0.0, 100.0, 10);
+        histogram.add_value(val1);
+        histogram.add_value(val2);
+    }
 
-    db.close();
-    std::remove("fuzz_query.db");
     return 0;
 }

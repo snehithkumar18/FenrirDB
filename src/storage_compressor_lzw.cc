@@ -10,11 +10,12 @@ LZWCompressor::LZWCompressor() {
 void LZWCompressor::reset_dictionary() {
     compress_dict.clear();
     decompress_dict.clear();
+    clear_arena();
 
     for (uint16_t i = 0; i < 256; ++i) {
         std::string ch(1, static_cast<char>(i));
         compress_dict[ch] = i;
-        decompress_dict[i] = ch;
+        decompress_dict[i] = std::string_view(allocate_string(ch), 1);
     }
 }
 
@@ -60,31 +61,31 @@ std::string LZWCompressor::decompress(const std::vector<uint16_t>& input) {
 
     uint16_t next_code = 256;
     uint16_t old_code = input[0];
-    std::string s = decompress_dict[old_code];
+    std::string_view s = decompress_dict[old_code];
     decompressed += s;
-    std::string c = "";
-    c += s[0];
+    std::string_view c = s.substr(0, 1);
 
     for (size_t i = 1; i < input.size(); ++i) {
         uint16_t n_code = input[i];
-        std::string entry = "";
+        std::string_view entry = "";
         
         if (decompress_dict.find(n_code) != decompress_dict.end()) {
             entry = decompress_dict[n_code];
         } else if (n_code == next_code) {
-            entry = decompress_dict[old_code] + c;
+            std::string entry_str = std::string(decompress_dict[old_code]) + std::string(c);
+            entry = std::string_view(allocate_string(entry_str), entry_str.size());
         } else {
             Logger::get_instance().error("LZW", "Invalid LZW decompression code encountered.");
             return "";
         }
 
         decompressed += entry;
-        c = "";
-        c += entry[0];
+        c = entry.substr(0, 1);
 
         // Add prefix to dictionary
         if (next_code < 4096) {
-            decompress_dict[next_code++] = decompress_dict[old_code] + c;
+            std::string new_entry_str = std::string(decompress_dict[old_code]) + std::string(c);
+            decompress_dict[next_code++] = std::string_view(allocate_string(new_entry_str), new_entry_str.size());
         } else {
             reset_dictionary();
             next_code = 256;

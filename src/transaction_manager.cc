@@ -113,4 +113,25 @@ std::shared_ptr<Transaction> TransactionManager::get_tx(uint32_t tx_id) {
     return nullptr;
 }
 
+DBErrorCode TransactionManager::write_record(uint32_t tx_id, uint32_t page_id, uint16_t slot_id, const std::vector<uint8_t>& data) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = tx_table.find(tx_id);
+    if (it == tx_table.end()) {
+        return DBErrorCode::ERR_GENERIC;
+    }
+
+    std::shared_ptr<Transaction> tx = it->second;
+    
+    log_manager.append_record(tx_id, LogRecordType::INSERT, page_id, slot_id, {}, data);
+
+    TxnRecord* rec = new TxnRecord();
+    rec->rid = {page_id, slot_id};
+    rec->data_len = data.size();
+    rec->data = new uint8_t[data.size()];
+    std::memcpy(rec->data, data.data(), data.size());
+    tx->modified_records.push_back(rec);
+
+    return DBErrorCode::SUCCESS;
+}
+
 } // namespace FenrirDB

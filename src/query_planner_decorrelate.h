@@ -2,6 +2,7 @@
 #define FENRIRDB_QUERY_PLANNER_DECORRELATE_H
 
 #include "query_planner.h"
+#include "logical_plan.h"
 #include <memory>
 #include <string>
 #include <vector>

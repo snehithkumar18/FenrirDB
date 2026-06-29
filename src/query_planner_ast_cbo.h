@@ -2,6 +2,7 @@
 #define FENRIRDB_QUERY_PLANNER_AST_CBO_H
 
 #include "query_planner.h"
+#include "logical_plan.h"
 #include "optimizer_cbo.h"
 #include <memory>
 #include <string>

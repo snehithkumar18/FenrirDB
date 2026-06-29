@@ -55,7 +55,8 @@ std::vector<std::string> PartitionOptimizer::prune_partitions_optimized(const Pa
 
     // Base predicate check
     if (filter.field == pm.get_partition_col()) {
-        const auto& partitions = pm.get_partitions();
+        const RangePartitionManager& rpm = static_cast<const RangePartitionManager&>(pm);
+        const auto& partitions = rpm.ranges;
         // Constant routing check
         for (const auto& p : partitions) {
             bool match = false;
@@ -80,7 +81,8 @@ std::vector<std::string> PartitionOptimizer::prune_partitions_optimized(const Pa
     }
 
     // Filter is not on partition key, must scan all partitions
-    const auto& partitions = pm.get_partitions();
+    const RangePartitionManager& rpm = static_cast<const RangePartitionManager&>(pm);
+    const auto& partitions = rpm.ranges;
     for (const auto& p : partitions) {
         pruned.push_back(p.partition_name);
     }

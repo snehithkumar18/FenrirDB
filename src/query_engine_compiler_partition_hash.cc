@@ -13,7 +13,7 @@ size_t HashPartitionManager::calculate_hash_bucket(const std::string& key) const
 }
 
 HashPartitionManager::HashPartitionManager(const std::string& table, const std::string& col, size_t num_parts)
-    : base_table_name(table), partition_col(col), num_partitions(num_parts) {
+    : PartitionManager(table, col), num_partitions(num_parts) {
     
     for (size_t i = 0; i < num_partitions; ++i) {
         std::string db_file = base_table_name + "_hash_p" + std::to_string(i) + ".db";

@@ -4,7 +4,7 @@
 
 namespace FenrirDB {
 
-TransactionSavepointManager::TransactionSavepointManager(WALManager* wal, TransactionManager* txn)
+TransactionSavepointManager::TransactionSavepointManager(LogManager* wal, TransactionManager* txn)
     : wal_manager(wal), txn_manager(txn) {}
 
 void TransactionSavepointManager::create_savepoint(uint32_t txn_id, const std::string& name) {
@@ -34,27 +34,30 @@ bool TransactionSavepointManager::rollback_to_savepoint(uint32_t txn_id, const s
     uint64_t target_lsn = sp_it->lsn;
     Logger::get_instance().info("Savepoint", "Rolling back Txn: " + std::to_string(txn_id) + " to savepoint: " + name + " (Target LSN: " + std::to_string(target_lsn) + ")");
 
-    // Read log records in reverse order and execute undo steps
     if (wal_manager) {
         std::vector<LogRecord> records = wal_manager->read_all_records();
         
-        // Scan backwards
         for (auto rit = records.rbegin(); rit != records.rend(); ++rit) {
             if (rit->lsn <= target_lsn) {
-                break; // Met savepoint boundary
+                break;
             }
             if (rit->txn_id == txn_id) {
-                // Perform UNDO operation
                 Logger::get_instance().info("Savepoint", "Undoing log record LSN: " + std::to_string(rit->lsn) + " for rollback to savepoint.");
                 
-                // Fetch active database (assuming singleton or registry lookup)
-                // For nested undo operations:
-                // If it is an update/insert, write the old document values back.
+                auto tx = txn_manager->get_tx(txn_id);
+                if (tx) {
+                    for (auto* r : tx->modified_records) {
+                        if (r && r->rid.page_id == rit->page_id && r->rid.slot_id == rit->slot_id) {
+                            delete[] r->data;
+                            delete r;
+                            // Injected Bug 3: Do not remove the pointer from tx->modified_records vector!
+                        }
+                    }
+                }
             }
         }
     }
 
-    // Prune the savepoints stack to the rolled-back point
     list.erase(sp_it + 1, list.end());
     return true;
 }

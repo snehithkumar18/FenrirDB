@@ -112,13 +112,21 @@ enum class QueryOp {
     EQ,
     NEQ,
     GT,
-    LT
+    LT,
+    AND,
+    OR
 };
 
 struct QueryNode {
     std::string field;
     QueryOp op;
     Variant value;
+    std::shared_ptr<QueryNode> left_child = nullptr;
+    std::shared_ptr<QueryNode> right_child = nullptr;
+
+    QueryNode() = default;
+    QueryNode(const std::string& f, QueryOp o, const Variant& v)
+        : field(f), op(o), value(v), left_child(nullptr), right_child(nullptr) {}
 };
 
 class QueryEvaluator {

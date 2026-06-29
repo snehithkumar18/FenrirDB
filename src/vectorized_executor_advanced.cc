@@ -72,13 +72,21 @@ bool VectorizedHashJoin::next(VectorBatch& batch) {
             if (cell.type == VariantType::STRING) probe_key = cell.get_string();
             else if (cell.type == VariantType::INT) probe_key = std::to_string(cell.get_int());
 
+            // Stack-allocated buffer for matches (Bug 6 Stack Overflow)
+            const std::unordered_map<std::string, Variant>* left_matches[128];
+            size_t match_count = 0;
+
             auto range = build_table.equal_range(probe_key);
             for (auto match_it = range.first; match_it != range.second; ++match_it) {
+                // Injected Bug 6: No bounds check on match_count, leading to stack overflow
+                left_matches[match_count++] = &(match_it->second);
+            }
+
+            for (size_t m = 0; m < match_count; ++m) {
                 if (result_idx >= VECTOR_LIMIT) {
-                    // Flush limit reached
                     break;
                 }
-                const auto& left_row = match_it->second;
+                const auto& left_row = *left_matches[m];
                 
                 // Add left columns
                 for (const auto& pair : left_row) {

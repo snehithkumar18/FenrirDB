@@ -8,6 +8,12 @@
 
 namespace FenrirDB {
 
+struct FlatHuffmanNode {
+    char ch;
+    int16_t left_idx;
+    int16_t right_idx;
+};
+
 struct HuffmanNode {
     char ch;
     int freq;

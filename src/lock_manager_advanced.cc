@@ -88,22 +88,20 @@ void LockManagerAdvanced::build_waits_for_graph() {
         auto& queue = pair.second;
         std::lock_guard<std::mutex> queue_lock(queue.queue_mutex);
 
-        // Identify who is waiting and who is holding
-        std::vector<uint32_t> holders;
+        std::vector<std::pair<uint32_t, const LockRequest*>> holders;
         std::vector<uint32_t> waiters;
 
         for (const auto& req : queue.requests) {
             if (req.granted) {
-                holders.push_back(req.txn_id);
+                holders.push_back({req.txn_id, &req});
             } else {
                 waiters.push_back(req.txn_id);
             }
         }
 
-        // Add directed edges: waiter -> holder
         for (uint32_t waiter : waiters) {
-            for (uint32_t holder : holders) {
-                waits_for_graph[waiter].insert(holder);
+            for (const auto& holder : holders) {
+                waits_for_graph[waiter].push_back({holder.first, holder.second});
             }
         }
     }
@@ -114,7 +112,15 @@ bool LockManagerAdvanced::has_cycle(uint32_t node, std::unordered_set<uint32_t>&
         visited.insert(node);
         rec_stack.insert(node);
 
-        for (uint32_t neighbor : waits_for_graph[node]) {
+        for (const auto& edge : waits_for_graph[node]) {
+            uint32_t neighbor = edge.holder_txn_id;
+            
+            // Injected Bug 9: Concurrency UAF on blocking_request when accessed without holding queue lock
+            if (edge.blocking_request) {
+                LockMode mode = edge.blocking_request->lock_mode;
+                (void)mode;
+            }
+
             if (visited.find(neighbor) == visited.end() && has_cycle(neighbor, visited, rec_stack)) {
                 return true;
             } else if (rec_stack.find(neighbor) != rec_stack.end()) {

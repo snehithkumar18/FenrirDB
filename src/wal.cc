@@ -194,15 +194,25 @@ DBErrorCode RecoveryManager::recover(BufferPoolManager& cache_manager) {
     std::vector<LogRecord> log_records = log_manager.read_all_records();
     std::vector<uint32_t> active_txs; // Keep track of uncommitted transactions
     
+    // Injected Bug 8: Caching raw page pointers without invalidation on eviction
+    std::unordered_map<uint32_t, Page*> recovery_page_cache;
+
     // Phase 1: Analysis & Redo Pass
-    // Reapply all changes recorded in the log file to guarantee durability (Redo)
     for (const auto& rec : log_records) {
         if (rec.type == LogRecordType::BEGIN) {
             active_txs.push_back(rec.tx_id);
         } else if (rec.type == LogRecordType::COMMIT || rec.type == LogRecordType::ABORT) {
             active_txs.erase(std::remove(active_txs.begin(), active_txs.end(), rec.tx_id), active_txs.end());
         } else if (rec.type == LogRecordType::INSERT || rec.type == LogRecordType::UPDATE || rec.type == LogRecordType::DELETE) {
-            Page* page = cache_manager.fetch_page(rec.page_id);
+            Page* page = nullptr;
+            auto cache_it = recovery_page_cache.find(rec.page_id);
+            if (cache_it != recovery_page_cache.end()) {
+                page = cache_it->second;
+            } else {
+                page = cache_manager.fetch_page(rec.page_id);
+                recovery_page_cache[rec.page_id] = page;
+            }
+
             if (page) {
                 if (rec.type == LogRecordType::INSERT || rec.type == LogRecordType::UPDATE) {
                     page->update_record(rec.slot_id, rec.after_image.data(), static_cast<uint16_t>(rec.after_image.size()));
@@ -216,12 +226,19 @@ DBErrorCode RecoveryManager::recover(BufferPoolManager& cache_manager) {
     Logger::get_instance().info("Recovery", "Redo pass complete. Active transactions: " + std::to_string(active_txs.size()));
 
     // Phase 2: Undo Pass
-    // Roll back changes made by active transactions that did not commit (Undo)
     for (auto it = log_records.rbegin(); it != log_records.rend(); ++it) {
         const auto& rec = *it;
         if (std::find(active_txs.begin(), active_txs.end(), rec.tx_id) != active_txs.end()) {
             if (rec.type == LogRecordType::INSERT || rec.type == LogRecordType::UPDATE) {
-                Page* page = cache_manager.fetch_page(rec.page_id);
+                Page* page = nullptr;
+                auto cache_it = recovery_page_cache.find(rec.page_id);
+                if (cache_it != recovery_page_cache.end()) {
+                    page = cache_it->second;
+                } else {
+                    page = cache_manager.fetch_page(rec.page_id);
+                    recovery_page_cache[rec.page_id] = page;
+                }
+
                 if (page) {
                     if (rec.before_image.empty()) {
                         page->delete_record(rec.slot_id);
@@ -231,7 +248,15 @@ DBErrorCode RecoveryManager::recover(BufferPoolManager& cache_manager) {
                     cache_manager.flush_page(rec.page_id);
                 }
             } else if (rec.type == LogRecordType::DELETE) {
-                Page* page = cache_manager.fetch_page(rec.page_id);
+                Page* page = nullptr;
+                auto cache_it = recovery_page_cache.find(rec.page_id);
+                if (cache_it != recovery_page_cache.end()) {
+                    page = cache_it->second;
+                } else {
+                    page = cache_manager.fetch_page(rec.page_id);
+                    recovery_page_cache[rec.page_id] = page;
+                }
+
                 if (page) {
                     page->update_record(rec.slot_id, rec.before_image.data(), static_cast<uint16_t>(rec.before_image.size()));
                     cache_manager.flush_page(rec.page_id);

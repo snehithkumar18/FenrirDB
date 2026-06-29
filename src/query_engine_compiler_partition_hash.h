@@ -6,12 +6,12 @@
 #include <vector>
 #include <unordered_map>
 
+#include "query_engine_compiler_partition.h"
+
 namespace FenrirDB {
 
-class HashPartitionManager {
+class HashPartitionManager : public PartitionManager {
 private:
-    std::string base_table_name;
-    std::string partition_col;
     size_t num_partitions;
     std::vector<std::unique_ptr<Database>> partition_dbs;
 
@@ -19,9 +19,9 @@ private:
 
 public:
     HashPartitionManager(const std::string& table, const std::string& col, size_t num_parts);
-    ~HashPartitionManager() = default;
+    ~HashPartitionManager() override = default;
 
-    DBErrorCode insert(const Document& doc);
+    DBErrorCode insert(const Document& doc) override;
     std::vector<size_t> prune_partitions(QueryOp op, const Variant& val);
     
     size_t get_num_partitions() const { return num_partitions; }

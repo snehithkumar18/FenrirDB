@@ -36,6 +36,28 @@ set(DB_SOURCES
     src/query_engine_compiler_partition_hash.cc
     src/query_engine_compiler_partition_list.cc
     src/query_engine_compiler_pivot_unpivot.cc
+    src/bloom_filter.cc
+    src/database_backup.cc
+    src/hash_index.cc
+    src/json_schema.cc
+    src/lock_escalation.cc
+    src/lock_manager_advanced.cc
+    src/optimizer_cbo.cc
+    src/optimizer_cbo_rules.cc
+    src/optimizer_cbo_stats.cc
+    src/optimizer_cbo_stats_histogram.cc
+    src/query_engine_compiler_partition_optimizer.cc
+    src/query_planner_ast.cc
+    src/query_planner_ast_cbo.cc
+    src/query_planner_decorrelate.cc
+    src/query_planner_explain.cc
+    src/sql_parser_advanced.cc
+    src/storage_compressor.cc
+    src/storage_compressor_huffman.cc
+    src/storage_compressor_lzw.cc
+    src/transaction_isolation.cc
+    src/transaction_manager_savepoint.cc
+    src/vectorized_executor_advanced.cc
 )
 
 # Core Shell executable

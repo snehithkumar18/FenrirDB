@@ -13,7 +13,7 @@ IndexNode::IndexNode() {
 }
 
 BPlusTreeIndex::BPlusTreeIndex(DiskManager& disk_mgr, BufferPoolManager& cache_mgr, uint32_t root_id)
-    : disk_manager(disk_mgr), cache_manager(cache_mgr), root_page_id(root_id) {
+    : disk_manager(disk_mgr), cache_manager(cache_mgr), root_page_id(root_id), last_leaf_page(nullptr), last_leaf_page_id(0) {
     Logger::get_instance().info("Index", "Initialized index with root page " + std::to_string(root_page_id));
 }
 
@@ -53,10 +53,27 @@ DBErrorCode BPlusTreeIndex::search(const CompositeKey& key, RecordID& value) {
 }
 
 DBErrorCode BPlusTreeIndex::insert(const CompositeKey& key, const RecordID& value) {
+    Page* page = nullptr;
+    uint32_t leaf_page_id = 0;
+
+    if (last_leaf_page && last_leaf_page_id != 0) {
+        IndexNode* node = reinterpret_cast<IndexNode*>(last_leaf_page->data + 8);
+        if (node->is_leaf && node->num_keys > 0 && key >= node->keys[0] && key <= node->keys[node->num_keys - 1]) {
+            page = last_leaf_page;
+            leaf_page_id = last_leaf_page_id;
+        }
+    }
+
     std::vector<uint32_t> path;
-    uint32_t leaf_page_id = find_leaf_page(root_page_id, key, &path);
-    Page* page = cache_manager.fetch_page(leaf_page_id);
-    if (!page) return DBErrorCode::ERR_PAGE_NOT_FOUND;
+    if (!page) {
+        leaf_page_id = find_leaf_page(root_page_id, key, &path);
+        page = cache_manager.fetch_page(leaf_page_id);
+        if (!page) return DBErrorCode::ERR_PAGE_NOT_FOUND;
+        last_leaf_page = page;
+        last_leaf_page_id = leaf_page_id;
+    } else {
+        find_leaf_page(root_page_id, key, &path);
+    }
 
     IndexNode* node = reinterpret_cast<IndexNode*>(page->data + 8);
     if (node->num_keys < MAX_KEYS) {

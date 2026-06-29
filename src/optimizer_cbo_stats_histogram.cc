@@ -13,8 +13,13 @@ void EquiWidthHistogram::add_value(double val) {
     if (val < min_value || val > max_value || min_value >= max_value) return;
 
     double bucket_width = (max_value - min_value) / num_buckets;
-    size_t bucket_idx = static_cast<size_t>((val - min_value) / bucket_width);
-    if (bucket_idx >= num_buckets) bucket_idx = num_buckets - 1;
+    double idx_double = (val - min_value) / bucket_width;
+    int bucket_idx = static_cast<int>(idx_double);
+
+    // Injected Bug 7: NaN comparison bypasses this check (NaN >= num_buckets is false)
+    if (idx_double >= num_buckets) {
+        bucket_idx = num_buckets - 1;
+    }
 
     bucket_counts[bucket_idx] += 1.0;
     total_count += 1.0;

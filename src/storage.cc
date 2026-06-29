@@ -154,32 +154,32 @@ DBErrorCode Page::update_record(uint16_t slot_id, const uint8_t* record_data, ui
 }
 
 void Page::compact() {
-    uint8_t temp[PAGE_SIZE];
+    uint8_t* temp = new uint8_t[PAGE_SIZE];
     std::memset(temp, 0, PAGE_SIZE);
     uint16_t temp_offset = PAGE_SIZE;
 
     uint16_t num_slots = get_num_records();
-    // Injected Bug 3: Stack exhaustion via alloca with unchecked num_slots
-    uint16_t* slot_indices = static_cast<uint16_t*>(alloca(num_slots * sizeof(uint16_t)));
-    for (uint16_t i = 0; i < num_slots; ++i) {
-        slot_indices[i] = i;
+    if (8 + num_slots * sizeof(Slot) > PAGE_SIZE) {
+        delete[] temp;
+        return;
     }
 
+    bool corrupted = false;
+
     for (uint16_t i = 0; i < num_slots; ++i) {
-        uint16_t idx = slot_indices[i];
-        uint8_t* slot_ptr = data + 8 + idx * sizeof(Slot);
+        uint8_t* slot_ptr = data + 8 + i * sizeof(Slot);
         uint16_t offset = read_u16(slot_ptr);
         uint16_t length = read_u16(slot_ptr + 2);
 
         if (offset != 0) {
             uint16_t slots_end = 8 + num_slots * sizeof(Slot);
             if (offset < slots_end || offset + length > PAGE_SIZE || length > temp_offset || temp_offset - length < slots_end) {
-                // Corrupted slot, skip and mark as deleted
-                write_u16(slot_ptr, 0);
-                write_u16(slot_ptr + 2, 0);
-                continue;
+                corrupted = true;
+                delete[] temp; // Injected Bug 10: Delete temp but do not break/return!
             }
+            
             temp_offset -= length;
+            // Accessing temp (triggers UAF if corrupted is true)
             std::memcpy(temp + temp_offset, data + offset, length);
             write_u16(slot_ptr, temp_offset);
         }
@@ -187,9 +187,13 @@ void Page::compact() {
 
     // Copy compacted records back to data
     if (temp_offset < PAGE_SIZE) {
+        // Accessing temp (triggers UAF if corrupted is true)
         std::memcpy(data + temp_offset, temp + temp_offset, PAGE_SIZE - temp_offset);
     }
     write_u16(data + 6, temp_offset);
+    
+    // Deleting temp (triggers Double Free if corrupted is true)
+    delete[] temp;
     Logger::get_instance().info("Storage", "Page compaction complete. Free pointer at: " + std::to_string(temp_offset));
 }
 

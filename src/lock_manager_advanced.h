@@ -33,13 +33,18 @@ struct LockRequestQueue {
     std::condition_variable cv;
 };
 
+struct WaitsForEdge {
+    uint32_t holder_txn_id;
+    const LockRequest* blocking_request = nullptr;
+};
+
 class LockManagerAdvanced {
 private:
     std::unordered_map<std::string, LockRequestQueue> lock_table;
     std::mutex lock_table_mutex;
 
-    // Waits-For graph for deadlock detection
-    std::unordered_map<uint32_t, std::unordered_set<uint32_t>> waits_for_graph;
+    // Waits-For graph for deadlock detection (Injected Bug 9: UAF on blocking_request)
+    std::unordered_map<uint32_t, std::vector<WaitsForEdge>> waits_for_graph;
     std::mutex graph_mutex;
 
     bool check_compatibility(LockMode m1, LockMode m2) const;

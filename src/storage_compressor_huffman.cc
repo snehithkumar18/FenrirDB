@@ -60,6 +60,39 @@ std::pair<std::vector<uint8_t>, size_t> HuffmanCompressor::compress(const std::s
     codes.clear();
     generate_codes(root, "");
 
+    // Flatten and serialize the tree
+    std::vector<FlatHuffmanNode> flat_nodes;
+    auto flatten = [&](auto& self, const std::shared_ptr<HuffmanNode>& node) -> int16_t {
+        if (!node) return -1;
+        FlatHuffmanNode flat;
+        flat.ch = node->ch;
+        flat.left_idx = -1;
+        flat.right_idx = -1;
+        
+        size_t idx = flat_nodes.size();
+        flat_nodes.push_back(flat);
+        
+        int16_t left = self(self, node->left);
+        int16_t right = self(self, node->right);
+        
+        flat_nodes[idx].left_idx = left;
+        flat_nodes[idx].right_idx = right;
+        return static_cast<int16_t>(idx);
+    };
+    flatten(flatten, root);
+
+    uint16_t num_nodes = static_cast<uint16_t>(flat_nodes.size());
+    compressed_bytes.push_back(num_nodes & 0xFF);
+    compressed_bytes.push_back((num_nodes >> 8) & 0xFF);
+
+    for (const auto& node : flat_nodes) {
+        compressed_bytes.push_back(static_cast<uint8_t>(node.ch));
+        compressed_bytes.push_back(node.left_idx & 0xFF);
+        compressed_bytes.push_back((node.left_idx >> 8) & 0xFF);
+        compressed_bytes.push_back(node.right_idx & 0xFF);
+        compressed_bytes.push_back((node.right_idx >> 8) & 0xFF);
+    }
+
     std::string bitstream = "";
     for (char c : input) {
         bitstream += codes[c];
@@ -90,25 +123,47 @@ std::pair<std::vector<uint8_t>, size_t> HuffmanCompressor::compress(const std::s
 
 std::string HuffmanCompressor::decompress(const std::vector<uint8_t>& compressed_bytes, size_t bit_length) {
     std::string decompressed = "";
-    if (compressed_bytes.empty() || bit_length == 0 || !root) return decompressed;
+    if (compressed_bytes.empty() || bit_length == 0) return decompressed;
 
-    std::shared_ptr<HuffmanNode> current = root;
+    size_t offset = 0;
+    if (compressed_bytes.size() < 2) return "";
+    uint16_t num_nodes = compressed_bytes[0] | (compressed_bytes[1] << 8);
+    offset += 2;
+
+    std::vector<FlatHuffmanNode> nodes;
+    for (uint16_t i = 0; i < num_nodes; ++i) {
+        if (offset + 5 > compressed_bytes.size()) return "";
+        FlatHuffmanNode node;
+        node.ch = static_cast<char>(compressed_bytes[offset++]);
+        node.left_idx = static_cast<int16_t>(compressed_bytes[offset] | (compressed_bytes[offset + 1] << 8));
+        offset += 2;
+        node.right_idx = static_cast<int16_t>(compressed_bytes[offset] | (compressed_bytes[offset + 1] << 8));
+        offset += 2;
+        nodes.push_back(node);
+    }
+
+    if (nodes.empty()) return "";
+
+    int16_t current_idx = 0;
     size_t bits_processed = 0;
 
-    for (uint8_t b : compressed_bytes) {
+    for (size_t byte_idx = offset; byte_idx < compressed_bytes.size(); ++byte_idx) {
+        uint8_t b = compressed_bytes[byte_idx];
         for (int i = 7; i >= 0; --i) {
             if (bits_processed >= bit_length) break;
             
             bool bit = (b >> i) & 1;
+            // INJECTED BUG 5: Out of bounds read (no bounds check on current_idx)
+            const auto& node = nodes[current_idx];
             if (bit) {
-                current = current->right;
+                current_idx = node.right_idx;
             } else {
-                current = current->left;
+                current_idx = node.left_idx;
             }
 
-            if (current->ch != '\0') {
-                decompressed += current->ch;
-                current = root; // Reset traversal
+            if (current_idx == -1) {
+                decompressed += node.ch;
+                current_idx = 0;
             }
             bits_processed++;
         }

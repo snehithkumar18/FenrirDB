@@ -1,32 +1,14 @@
 #!/bin/bash -eu
 
-# Compile library source files
-$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/storage.cc -o storage.o
-$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/cache.cc -o cache.o
-$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/index.cc -o index.o
-$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/query.cc -o query.o
-$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/database.cc -o database.o
-$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/wal.cc -o wal.o
-$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/lock_manager.cc -o lock_manager.o
-$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/sql_parser.cc -o sql_parser.o
-$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/json_parser.cc -o json_parser.o
-$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/query_planner.cc -o query_planner.o
-$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/transaction_manager.cc -o transaction_manager.o
-$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/optimizer.cc -o optimizer.o
-$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/checkpoint.cc -o checkpoint.o
-$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/wal_buffer.cc -o wal_buffer.o
-$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/query_engine_compiler.cc -o query_engine_compiler.o
-$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/query_engine_compiler_pass.cc -o query_engine_compiler_pass.o
-$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/query_engine_compiler_window.cc -o query_engine_compiler_window.o
-$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/query_engine_compiler_window_agg.cc -o query_engine_compiler_window_agg.o
-$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/query_engine_compiler_window_ranking.cc -o query_engine_compiler_window_ranking.o
-$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/query_engine_compiler_recursive.cc -o query_engine_compiler_recursive.o
-$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/query_engine_compiler_pivot.cc -o query_engine_compiler_pivot.o
-$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/query_engine_compiler_partition.cc -o query_engine_compiler_partition.o
-$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/query_engine_compiler_partition_hash.cc -o query_engine_compiler_partition_hash.o
-$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/query_engine_compiler_partition_list.cc -o query_engine_compiler_partition_list.o
-$CXX $CXXFLAGS -std=c++17 -Isrc/ -c src/query_engine_compiler_pivot_unpivot.cc -o query_engine_compiler_pivot_unpivot.o
+# Compile library source files (excluding db_shell.cc which has main())
+for f in src/*.cc; do
+  if [ "$(basename "$f")" != "db_shell.cc" ]; then
+    $CXX $CXXFLAGS -std=c++17 -Isrc/ -c "$f" -o "$(basename "$f" .cc).o"
+  fi
+done
 
-# Compile fuzz targets and link with the fuzzing engine
-$CXX $CXXFLAGS -std=c++17 -Isrc/ fuzz/fuzz_query.cc storage.o cache.o index.o query.o database.o wal.o lock_manager.o sql_parser.o json_parser.o query_planner.o transaction_manager.o optimizer.o checkpoint.o wal_buffer.o query_engine_compiler.o query_engine_compiler_pass.o query_engine_compiler_window.o query_engine_compiler_window_agg.o query_engine_compiler_window_ranking.o query_engine_compiler_recursive.o query_engine_compiler_pivot.o query_engine_compiler_partition.o query_engine_compiler_partition_hash.o query_engine_compiler_partition_list.o query_engine_compiler_pivot_unpivot.o -o $OUT/fuzz_query $LIB_FUZZING_ENGINE
-$CXX $CXXFLAGS -std=c++17 -Isrc/ fuzz/fuzz_storage.cc storage.o cache.o index.o query.o database.o wal.o lock_manager.o sql_parser.o json_parser.o query_planner.o transaction_manager.o optimizer.o checkpoint.o wal_buffer.o query_engine_compiler.o query_engine_compiler_pass.o query_engine_compiler_window.o query_engine_compiler_window_agg.o query_engine_compiler_window_ranking.o query_engine_compiler_recursive.o query_engine_compiler_pivot.o query_engine_compiler_partition.o query_engine_compiler_partition_hash.o query_engine_compiler_partition_list.o query_engine_compiler_pivot_unpivot.o -o $OUT/fuzz_storage $LIB_FUZZING_ENGINE
+# Compile all fuzz targets in the fuzz/ directory
+for fuzz_target in fuzz/fuzz_*.cc; do
+  target_name=$(basename "$fuzz_target" .cc)
+  $CXX $CXXFLAGS -std=c++17 -Isrc/ "$fuzz_target" *.o -o "$OUT/$target_name" $LIB_FUZZING_ENGINE
+done
