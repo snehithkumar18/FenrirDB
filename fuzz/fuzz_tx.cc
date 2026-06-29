@@ -10,6 +10,8 @@
 #include <cstdio>
 #include <fstream>
 
+using namespace FenrirDB;
+
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     if (size < 20) return 0;
 
