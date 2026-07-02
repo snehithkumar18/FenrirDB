@@ -1,0 +1,6 @@
+*.sh text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.cc text eol=lf
+*.h text eol=lf
+*.py text eol=lf
