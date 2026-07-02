@@ -10,6 +10,8 @@
 #include <thread>
 #include <cstdio>
 
+using FenrirDB::DBErrorCode;
+
 // Helper to construct a large document with 10 fields
 FenrirDB::Document make_large_mock_doc(int id_num, const std::string& name, int age, int salary) {
     FenrirDB::Document doc;
@@ -95,8 +97,8 @@ void run_mvcc_wal_checkpoint_stress() {
     for (int t = 1; t <= 4; ++t) {
         workers.emplace_back([&, t]() {
             for (int i = 1; i <= 50; ++i) {
-                uint32_t tx_id = t * 100 + i;
-                auto tx = tx_mgr.begin_tx(tx_id);
+                auto tx = tx_mgr.begin_tx();
+                uint32_t tx_id = tx->tx_id;
 
                 // Insert index pointer
                 FenrirDB::CompositeKey key("tx_key_" + std::to_string(tx_id));
@@ -107,7 +109,7 @@ void run_mvcc_wal_checkpoint_stress() {
                 log_mgr.append_record(tx_id, FenrirDB::LogRecordType::INSERT, 100, static_cast<uint16_t>(tx_id), {}, {1, 2, 3});
 
                 if (i % 5 == 0) {
-                    tx_mgr.abort_tx(tx_id);
+                    tx_mgr.abort_tx(tx_id, cache_mgr);
                 } else {
                     tx_mgr.commit_tx(tx_id);
                 }

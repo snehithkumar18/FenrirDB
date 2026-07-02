@@ -1,0 +1,5 @@
+load|users
+filter|score > 10
+project|id,score,region
+window|group|rows|3
+preview|gray 

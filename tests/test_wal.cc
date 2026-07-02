@@ -1,10 +1,13 @@
 #include "../src/wal.h"
+#include "../src/errors.h"
 #include "../src/storage.h"
 #include "../src/cache.h"
 #include <iostream>
 #include <cassert>
 #include <cstdio>
 #include <vector>
+
+using FenrirDB::DBErrorCode;
 
 void test_log_record_serialization() {
     std::cout << "Running test_log_record_serialization..." << std::endl;

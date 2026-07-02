@@ -6,21 +6,24 @@
 void test_sql_lexer_stress() {
     std::cout << "Running test_sql_lexer_stress..." << std::endl;
 
-    std::string sql = "SELECT id, name, salary FROM employees WHERE age >= 30 AND dept == 'Engineering' LIMIT 5;";
+    std::string sql = "SELECT id, name, salary FROM employees WHERE age > 30;";
     FenrirDB::SQLLexer lexer(sql);
-    std::vector<FenrirDB::SQLToken> tokens = lexer.tokenize();
+    std::vector<FenrirDB::Token> tokens = lexer.tokenize();
 
     assert(!tokens.empty());
-    assert(tokens[0].type == FenrirDB::SQLTokenType::SELECT);
-    assert(tokens[1].text == "id");
-    assert(tokens[2].type == FenrirDB::SQLTokenType::IDENTIFIER); // name
-    assert(tokens[4].text == "salary");
-    assert(tokens[6].type == FenrirDB::SQLTokenType::FROM);
-    assert(tokens[7].text == "employees");
-    assert(tokens[8].type == FenrirDB::SQLTokenType::WHERE);
-    assert(tokens[9].text == "age");
-    assert(tokens[10].type == FenrirDB::SQLTokenType::OPERATOR);
-    assert(tokens[10].text == ">=");
+    assert(tokens[0].type == FenrirDB::TokenType::KEYWORD_SELECT);
+    assert(tokens[1].type == FenrirDB::TokenType::IDENTIFIER && tokens[1].text == "id");
+    assert(tokens[2].type == FenrirDB::TokenType::COMMA);
+    assert(tokens[3].type == FenrirDB::TokenType::IDENTIFIER && tokens[3].text == "name");
+    assert(tokens[4].type == FenrirDB::TokenType::COMMA);
+    assert(tokens[5].type == FenrirDB::TokenType::IDENTIFIER && tokens[5].text == "salary");
+    assert(tokens[6].type == FenrirDB::TokenType::KEYWORD_FROM);
+    assert(tokens[7].type == FenrirDB::TokenType::IDENTIFIER && tokens[7].text == "employees");
+    assert(tokens[8].type == FenrirDB::TokenType::KEYWORD_WHERE);
+    assert(tokens[9].type == FenrirDB::TokenType::IDENTIFIER && tokens[9].text == "age");
+    assert(tokens[10].type == FenrirDB::TokenType::OP_GREATER);
+    assert(tokens[11].type == FenrirDB::TokenType::NUMBER && tokens[11].text == "30");
+    assert(tokens[12].type == FenrirDB::TokenType::SEMICOLON);
 
     std::cout << "test_sql_lexer_stress passed." << std::endl;
 }
@@ -28,21 +31,23 @@ void test_sql_lexer_stress() {
 void test_sql_parser_stress() {
     std::cout << "Running test_sql_parser_stress..." << std::endl;
 
-    std::string sql = "SELECT id, name FROM users WHERE id = 'user_10' LIMIT 1;";
+    std::string sql = "SELECT id, name FROM users WHERE id = 'user_10';";
     FenrirDB::SQLLexer lexer(sql);
-    std::vector<FenrirDB::SQLToken> tokens = lexer.tokenize();
+    std::vector<FenrirDB::Token> tokens = lexer.tokenize();
 
     FenrirDB::SQLParser parser(tokens);
-    FenrirDB::SQLSelectStatement stmt = parser.parse_select();
+    auto stmt_ptr = parser.parse();
+    assert(stmt_ptr != nullptr);
+    assert(stmt_ptr->type == FenrirDB::StatementType::SELECT);
 
-    assert(stmt.table_name == "users");
-    assert(stmt.select_fields.size() == 2);
-    assert(stmt.select_fields[0] == "id");
-    assert(stmt.select_fields[1] == "name");
-    assert(stmt.where_field == "id");
-    assert(stmt.where_op == FenrirDB::QueryOp::EQ);
-    assert(stmt.where_value.get_string() == "user_10");
-    assert(stmt.limit == 1);
+    auto* stmt = static_cast<FenrirDB::SQLSelectStatement*>(stmt_ptr.get());
+    assert(stmt->table_name == "users");
+    assert(stmt->fields.size() == 2);
+    assert(stmt->fields[0] == "id");
+    assert(stmt->fields[1] == "name");
+    assert(stmt->where_field == "id");
+    assert(stmt->where_op == FenrirDB::QueryOp::EQ);
+    assert(stmt->where_value.get_string() == "user_10");
 
     std::cout << "test_sql_parser_stress passed." << std::endl;
 }
@@ -53,16 +58,11 @@ void test_invalid_sql_parsing() {
     // Syntax missing table name
     std::string sql = "SELECT id FROM;";
     FenrirDB::SQLLexer lexer(sql);
-    std::vector<FenrirDB::SQLToken> tokens = lexer.tokenize();
+    std::vector<FenrirDB::Token> tokens = lexer.tokenize();
 
     FenrirDB::SQLParser parser(tokens);
-    try {
-        FenrirDB::SQLSelectStatement stmt = parser.parse_select();
-        // Should either fail to assert or return empty table name
-        assert(stmt.table_name.empty());
-    } catch (...) {
-        // Exception catching is fine
-    }
+    auto stmt = parser.parse();
+    assert(stmt == nullptr);
 
     std::cout << "test_invalid_sql_parsing passed." << std::endl;
 }

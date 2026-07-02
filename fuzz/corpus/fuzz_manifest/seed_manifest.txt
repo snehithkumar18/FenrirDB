@@ -1,0 +1,7 @@
+[base]
+shards=2
+replicas=2
+mode=primary
+[analytics]
+parent=base
+shards=3

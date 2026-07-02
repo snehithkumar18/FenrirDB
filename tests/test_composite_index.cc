@@ -1,8 +1,11 @@
 #include "../src/index.h"
+#include "../src/errors.h"
 #include <iostream>
 #include <cassert>
 #include <cstdio>
 #include <vector>
+
+using FenrirDB::DBErrorCode;
 
 void test_composite_key_comparisons() {
     std::cout << "Running test_composite_key_comparisons..." << std::endl;

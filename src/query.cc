@@ -15,6 +15,10 @@ Variant::Variant(const std::string& val) : type(VariantType::STRING) {
     val_ptr = new StringValue(val);
 }
 
+Variant::Variant(const char* val) : type(VariantType::STRING) {
+    val_ptr = new StringValue(val ? val : "");
+}
+
 Variant::Variant(bool val) : type(VariantType::BOOL) {
     val_ptr = new BoolValue(val);
 }

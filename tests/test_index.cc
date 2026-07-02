@@ -1,7 +1,10 @@
 #include "../src/index.h"
+#include "../src/errors.h"
 #include <iostream>
 #include <cassert>
 #include <cstdio>
+
+using FenrirDB::DBErrorCode;
 
 void test_index_basic() {
     std::cout << "Running test_index_basic..." << std::endl;

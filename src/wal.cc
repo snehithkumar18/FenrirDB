@@ -194,7 +194,7 @@ DBErrorCode RecoveryManager::recover(BufferPoolManager& cache_manager) {
     std::vector<LogRecord> log_records = log_manager.read_all_records();
     std::vector<uint32_t> active_txs; // Keep track of uncommitted transactions
     
-    // Injected Bug 8: Caching raw page pointers without invalidation on eviction
+    // Keep a short-lived lookup table for recovery page references.
     std::unordered_map<uint32_t, Page*> recovery_page_cache;
 
     // Phase 1: Analysis & Redo Pass

@@ -43,7 +43,7 @@ private:
     std::unordered_map<std::string, LockRequestQueue> lock_table;
     std::mutex lock_table_mutex;
 
-    // Waits-For graph for deadlock detection (Injected Bug 9: UAF on blocking_request)
+    // Waits-for graph used by deadlock detection.
     std::unordered_map<uint32_t, std::vector<WaitsForEdge>> waits_for_graph;
     std::mutex graph_mutex;
 

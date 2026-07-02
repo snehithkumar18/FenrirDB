@@ -20,6 +20,7 @@ public:
     }
 
     void log(Level level, const std::string& component, const std::string& message) {
+        if (level == Level::INFO) return;
         std::string level_str;
         switch (level) {
             case Level::INFO: level_str = "[INFO]"; break;

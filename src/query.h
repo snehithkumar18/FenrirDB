@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <memory>
 #include "errors.h"
 
 namespace FenrirDB {
@@ -67,6 +68,7 @@ struct Variant {
     Variant();
     explicit Variant(int val);
     explicit Variant(const std::string& val);
+    Variant(const char* val);
     explicit Variant(bool val);
     explicit Variant(const std::unordered_map<std::string, Variant>& val);
     explicit Variant(const std::vector<Variant>& val);

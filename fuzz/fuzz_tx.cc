@@ -20,7 +20,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     std::remove(db_file.c_str());
     std::remove(wal_file.c_str());
 
-    // Part 1: Fuzz Transaction Savepoints & Double-Free (Bug 3)
+    // Part 1: exercise transaction savepoints across rollback paths.
     {
         DiskManager disk_mgr(db_file);
         BufferPoolManager cache_mgr(10, disk_mgr);
@@ -61,7 +61,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         tx_mgr.abort_tx(tid, cache_mgr);
     }
 
-    // Part 2: Fuzz WAL Recovery UAF (Bug 8)
+    // Part 2: exercise WAL recovery after interleaved writes.
     {
         std::remove(db_file.c_str());
         std::remove(wal_file.c_str());
@@ -77,7 +77,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             disk_mgr.allocate_page();
         }
 
-        BufferPoolManager cache_mgr(3, disk_mgr); // Small cache size to trigger eviction
+        BufferPoolManager cache_mgr(3, disk_mgr);
         LogManager log_mgr(wal_file);
         RecoveryManager rec_mgr(log_mgr, disk_mgr);
 

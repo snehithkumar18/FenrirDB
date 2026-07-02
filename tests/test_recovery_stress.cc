@@ -7,7 +7,9 @@
 #include <cassert>
 #include <cstdio>
 
-void simulate_crash_recovery(int num_transactions, int seed) {
+using FenrirDB::DBErrorCode;
+
+void simulate_interrupted_recovery(int num_transactions, int seed) {
     std::string db_file = "stress_recovery_" + std::to_string(seed) + ".db";
     std::string log_file = "stress_recovery_" + std::to_string(seed) + ".log";
     std::remove(db_file.c_str());
@@ -17,7 +19,7 @@ void simulate_crash_recovery(int num_transactions, int seed) {
     std::vector<std::string> committed_keys;
     std::vector<std::string> aborted_keys;
 
-    // Phase 1: Simulate active updates and intermittent crashes
+    // Phase 1: Simulate active updates and intermittent interruptions
     {
         FenrirDB::DiskManager disk_mgr(db_file);
         FenrirDB::BufferPoolManager cache_mgr(10, disk_mgr);
@@ -45,7 +47,7 @@ void simulate_crash_recovery(int num_transactions, int seed) {
                 log_mgr.append_record(tx, FenrirDB::LogRecordType::COMMIT);
                 committed_keys.push_back(key);
             } else {
-                // Intermittent crash simulation: we leave the log without a COMMIT,
+                // Intermittent interruption simulation: we leave the log without a COMMIT,
                 // meaning this transaction's changes should be discarded during recovery.
                 aborted_keys.push_back(key);
             }
@@ -94,7 +96,7 @@ void simulate_crash_recovery(int num_transactions, int seed) {
 int main() {
     std::cout << "Starting transaction recovery stress tests..." << std::endl;
     for (int seed = 1; seed <= 5; ++seed) {
-        simulate_crash_recovery(50, seed);
+        simulate_interrupted_recovery(50, seed);
     }
     std::cout << "All transaction recovery stress tests passed successfully!" << std::endl;
     return 0;

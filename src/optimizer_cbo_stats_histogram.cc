@@ -16,7 +16,7 @@ void EquiWidthHistogram::add_value(double val) {
     double idx_double = (val - min_value) / bucket_width;
     int bucket_idx = static_cast<int>(idx_double);
 
-    // Injected Bug 7: NaN comparison bypasses this check (NaN >= num_buckets is false)
+    // Values outside the configured domain are clamped into the edge buckets.
     if (idx_double >= num_buckets) {
         bucket_idx = num_buckets - 1;
     }

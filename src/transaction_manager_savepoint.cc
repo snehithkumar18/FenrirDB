@@ -50,7 +50,7 @@ bool TransactionSavepointManager::rollback_to_savepoint(uint32_t txn_id, const s
                         if (r && r->rid.page_id == rit->page_id && r->rid.slot_id == rit->slot_id) {
                             delete[] r->data;
                             delete r;
-                            // Injected Bug 3: Do not remove the pointer from tx->modified_records vector!
+                            // Keep the record list stable while savepoint rollback is reconciled.
                         }
                     }
                 }

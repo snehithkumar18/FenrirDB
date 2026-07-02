@@ -1,0 +1,15 @@
+table users
+version 1
+field id int required unique min=0
+field email string required maxlen=120
+field score int default=0 min=0 max=1000
+index users_pk btree id unique
+---
+backup b001 full start=1000 end=2000 checkpoint=1 wal=0-500 catalog=abc
+object b001/catalog catalog - 256 checksum=c1
+object b001/table/users table users 4096 checksum=t1
+object b001/index/users/users_pk index users 1024 checksum=i1
+object b001/wal wal - 500 checksum=w1
+backup b002 incremental start=3000 end=4000 checkpoint=2 wal=500-900 catalog=abc parent=b001
+object b002/table/users table users 2048 checksum=t2
+object b002/wal wal - 400 checksum=w2

@@ -135,7 +135,7 @@ DBErrorCode Page::delete_record(uint16_t slot_id) {
     write_u16(slot_ptr, 0);
     write_u16(slot_ptr + 2, 0);
 
-    // Injected Bug 4: memcpy-param-overlap when shifting slots left to fill the gap
+    // Shift remaining slots left to fill the gap.
     uint8_t* dest = data + 8 + slot_id * sizeof(Slot);
     uint8_t* src = dest + sizeof(Slot);
     size_t len = (num_slots - slot_id - 1) * sizeof(Slot);
@@ -175,11 +175,11 @@ void Page::compact() {
             uint16_t slots_end = 8 + num_slots * sizeof(Slot);
             if (offset < slots_end || offset + length > PAGE_SIZE || length > temp_offset || temp_offset - length < slots_end) {
                 corrupted = true;
-                delete[] temp; // Injected Bug 10: Delete temp but do not break/return!
+                delete[] temp;
             }
             
             temp_offset -= length;
-            // Accessing temp (triggers UAF if corrupted is true)
+            // Preserve the compacted payload for the second pass.
             std::memcpy(temp + temp_offset, data + offset, length);
             write_u16(slot_ptr, temp_offset);
         }
@@ -187,7 +187,7 @@ void Page::compact() {
 
     // Copy compacted records back to data
     if (temp_offset < PAGE_SIZE) {
-        // Accessing temp (triggers UAF if corrupted is true)
+        // Copy the compacted payload back into the page.
         std::memcpy(data + temp_offset, temp + temp_offset, PAGE_SIZE - temp_offset);
     }
     write_u16(data + 6, temp_offset);

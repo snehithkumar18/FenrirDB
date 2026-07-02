@@ -1,4 +1,5 @@
 #include "../src/database.h"
+#include "../src/errors.h"
 #include "../src/wal.h"
 #include "../src/lock_manager.h"
 #include "../src/sql_parser.h"
@@ -9,6 +10,8 @@
 #include <random>
 #include <cassert>
 #include <chrono>
+
+using FenrirDB::DBErrorCode;
 
 constexpr int STRESS_PAGES = 200;
 constexpr int STRESS_ITERATIONS = 1000;
@@ -127,7 +130,7 @@ void test_sql_parser_stress() {
         "SELECT name, age FROM users WHERE age > 21;",
         "SELECT id FROM products WHERE price < 100;",
         "INSERT INTO users user1 (name, age, active) VALUES ('Alice', 30, true);",
-        "INSERT INTO log l2 (event, code) VALUES ('crash', 500);",
+        "INSERT INTO log l2 (event, code) VALUES ('fault', 500);",
         "SELECT * FROM accounts WHERE balance = 5000;"
     };
 

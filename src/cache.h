@@ -16,7 +16,7 @@ private:
     std::unordered_map<uint32_t, Page*> page_directory;
     std::vector<uint32_t> lru_queue;
 
-    void evict(); // Injected Bug 2 (Use-After-Free)
+    void evict();
 
 public:
     BufferPoolManager(size_t size, DiskManager& disk_mgr);

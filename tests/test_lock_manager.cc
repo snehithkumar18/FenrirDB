@@ -1,9 +1,12 @@
 #include "../src/lock_manager.h"
+#include "../src/errors.h"
 #include <iostream>
 #include <cassert>
 #include <thread>
 #include <chrono>
 #include <vector>
+
+using FenrirDB::DBErrorCode;
 #include <atomic>
 
 void test_shared_locks() {

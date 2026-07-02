@@ -3,10 +3,15 @@ project(FenrirDB CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+enable_testing()
 
 # Enable AddressSanitizer for memory safety bug validation
-add_compile_options(-fsanitize=address -g -O1)
-add_link_options(-fsanitize=address)
+if(MSVC)
+    add_compile_options(/fsanitize=address /Z7 /EHsc)
+else()
+    add_compile_options(-fsanitize=address -g -O1)
+    add_link_options(-fsanitize=address)
+endif()
 
 include_directories(src)
 
@@ -60,64 +65,108 @@ set(DB_SOURCES
     src/transaction_manager_savepoint.cc
     src/vectorized_executor.cc
     src/vectorized_executor_advanced.cc
+    src/catalog.cc
+    src/workload_planner.cc
+    src/schema_evolution.cc
+    src/replication_topology.cc
+    src/checkpoint_scheduler.cc
+    src/backup_restore.cc
+    src/telemetry.cc
+    src/binary_stream.cc
+    src/batch_job_runner.cc
+    src/data_transform.cc
+    src/runtime_expression.cc
+    src/runtime_manifest.cc
+    src/runtime_pipeline.cc
+    src/segment_cache.cc
+    src/workload_codec.cc
 )
 
+# Build the main database library
+add_library(fenrirdb_lib STATIC ${DB_SOURCES})
+
 # Core Shell executable
-add_executable(db_shell src/db_shell.cc ${DB_SOURCES})
+add_executable(db_shell src/db_shell.cc)
+target_link_libraries(db_shell fenrirdb_lib)
 
 # Test suite targets
-add_executable(test_storage tests/test_storage.cc ${DB_SOURCES})
-add_executable(test_cache tests/test_cache.cc ${DB_SOURCES})
-add_executable(test_index tests/test_index.cc ${DB_SOURCES})
-add_executable(test_database tests/test_database.cc ${DB_SOURCES})
-add_executable(test_lock_manager tests/test_lock_manager.cc ${DB_SOURCES})
-add_executable(test_wal tests/test_wal.cc ${DB_SOURCES})
-add_executable(test_stress tests/test_stress.cc ${DB_SOURCES})
-add_executable(test_json_parser tests/test_json_parser.cc ${DB_SOURCES})
-add_executable(test_query_planner tests/test_query_planner.cc ${DB_SOURCES})
-add_executable(test_transaction_manager tests/test_transaction_manager.cc ${DB_SOURCES})
-add_executable(test_optimizer tests/test_optimizer.cc ${DB_SOURCES})
-add_executable(test_benchmark tests/benchmark.cc ${DB_SOURCES})
-add_executable(test_recovery_stress tests/test_recovery_stress.cc ${DB_SOURCES})
-add_executable(test_nesting_stress tests/test_nesting_stress.cc ${DB_SOURCES})
-add_executable(test_joins tests/test_joins.cc ${DB_SOURCES})
-add_executable(test_aggregations tests/test_aggregations.cc ${DB_SOURCES})
-add_executable(test_checkpoint tests/test_checkpoint.cc ${DB_SOURCES})
-add_executable(test_composite_index tests/test_composite_index.cc ${DB_SOURCES})
-add_executable(test_cbo_crashes tests/test_cbo_crashes.cc ${DB_SOURCES})
-add_executable(test_composite_fuzz tests/test_composite_fuzz.cc ${DB_SOURCES})
-add_executable(test_executors_advanced tests/test_executors_advanced.cc ${DB_SOURCES})
-add_executable(test_wal_buffer tests/test_wal_buffer.cc ${DB_SOURCES})
-add_executable(test_performance_stress tests/test_performance_stress.cc ${DB_SOURCES})
-add_executable(test_parser_stress tests/test_parser_stress.cc ${DB_SOURCES})
-add_executable(test_mct_stress tests/test_mct_stress.cc ${DB_SOURCES})
-add_executable(test_compiler tests/test_compiler.cc ${DB_SOURCES})
-add_executable(test_compiler_pass tests/test_compiler_pass.cc ${DB_SOURCES})
-add_executable(test_window tests/test_window.cc ${DB_SOURCES})
-add_executable(test_window_agg tests/test_window_agg.cc ${DB_SOURCES})
-add_executable(test_window_ranking tests/test_window_ranking.cc ${DB_SOURCES})
-add_executable(test_recursive_cte tests/test_recursive_cte.cc ${DB_SOURCES})
-add_executable(test_pivot tests/test_pivot.cc ${DB_SOURCES})
-add_executable(test_partition tests/test_partition.cc ${DB_SOURCES})
-add_executable(test_partition_hash tests/test_partition_hash.cc ${DB_SOURCES})
-add_executable(test_partition_list tests/test_partition_list.cc ${DB_SOURCES})
-add_executable(test_unpivot tests/test_unpivot.cc ${DB_SOURCES})
-add_executable(test_sql_cte_joins tests/test_sql_cte_joins.cc ${DB_SOURCES})
+set(TEST_FILES
+    tests/test_storage.cc
+    tests/test_cache.cc
+    tests/test_index.cc
+    tests/test_database.cc
+    tests/test_lock_manager.cc
+    tests/test_wal.cc
+    tests/test_json_parser.cc
+    tests/test_query_planner.cc
+    tests/test_transaction_manager.cc
+    tests/test_optimizer.cc
+    tests/test_nesting_stress.cc
+    tests/test_joins.cc
+    tests/test_aggregations.cc
+    tests/test_checkpoint.cc
+    tests/test_composite_index.cc
+    tests/test_cbo_regression.cc
+    tests/test_executors_advanced.cc
+    tests/test_wal_buffer.cc
+    tests/test_parser_stress.cc
+    tests/test_mct_stress.cc
+    tests/test_compiler.cc
+    tests/test_compiler_pass.cc
+    tests/test_window.cc
+    tests/test_window_agg.cc
+    tests/test_window_ranking.cc
+    tests/test_recursive_cte.cc
+    tests/test_pivot.cc
+    tests/test_partition.cc
+    tests/test_partition_hash.cc
+    tests/test_partition_list.cc
+    tests/test_unpivot.cc
+    tests/test_sql_cte_joins.cc
+    tests/test_runtime_subsystems.cc
+    tests/test_catalog.cc
+    tests/test_workload_planner.cc
+    tests/test_schema_evolution.cc
+    tests/test_replication_topology.cc
+    tests/test_checkpoint_scheduler.cc
+    tests/test_backup_restore.cc
+    tests/test_telemetry.cc
+    tests/test_binary_stream.cc
+    tests/test_batch_job_runner.cc
+    tests/test_data_transform.cc
+)
 
-if(DEFINED ENV{LIB_FUZZING_ENGINE})
-    # Platform build mode
-    add_executable(fuzz_query fuzz/fuzz_query.cc ${DB_SOURCES})
-    target_link_libraries(fuzz_query $ENV{LIB_FUZZING_ENGINE})
+foreach(TEST_SRC ${TEST_FILES})
+    get_filename_component(TEST_NAME ${TEST_SRC} NAME_WE)
+    add_executable(${TEST_NAME} ${TEST_SRC})
+    target_link_libraries(${TEST_NAME} fenrirdb_lib)
+    add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
+endforeach()
 
-    add_executable(fuzz_storage fuzz/fuzz_storage.cc ${DB_SOURCES})
-    target_link_libraries(fuzz_storage $ENV{LIB_FUZZING_ENGINE})
-else()
-    # Standalone local build mode
-    add_executable(fuzz_query fuzz/fuzz_query.cc ${DB_SOURCES})
-    target_compile_definitions(fuzz_query PRIVATE STANDALONE_FUZZER)
-    target_sources(fuzz_query PRIVATE fuzz/fuzzer_main.cc)
+set(STRESS_TOOLS
+    tests/benchmark.cc
+    tests/test_stress.cc
+    tests/test_recovery_stress.cc
+    tests/test_composite_fuzz.cc
+    tests/test_performance_stress.cc
+)
 
-    add_executable(fuzz_storage fuzz/fuzz_storage.cc ${DB_SOURCES})
-    target_compile_definitions(fuzz_storage PRIVATE STANDALONE_FUZZER)
-    target_sources(fuzz_storage PRIVATE fuzz/fuzzer_main.cc)
-endif()
+foreach(TOOL_SRC ${STRESS_TOOLS})
+    get_filename_component(TOOL_NAME ${TOOL_SRC} NAME_WE)
+    add_executable(${TOOL_NAME} ${TOOL_SRC})
+    target_link_libraries(${TOOL_NAME} fenrirdb_lib)
+endforeach()
+
+# Fuzzers build configuration
+file(GLOB FENRIR_FUZZERS CONFIGURE_DEPENDS fuzz/fuzz_*.cc)
+foreach(FUZZ_SRC ${FENRIR_FUZZERS})
+    get_filename_component(FUZZ_NAME ${FUZZ_SRC} NAME_WE)
+    add_executable(${FUZZ_NAME} ${FUZZ_SRC})
+    target_link_libraries(${FUZZ_NAME} fenrirdb_lib)
+    if(DEFINED ENV{LIB_FUZZING_ENGINE})
+        target_link_libraries(${FUZZ_NAME} $ENV{LIB_FUZZING_ENGINE})
+    else()
+        target_compile_definitions(${FUZZ_NAME} PRIVATE STANDALONE_FUZZER)
+        target_sources(${FUZZ_NAME} PRIVATE fuzz/fuzzer_main.cc)
+    endif()
+endforeach()

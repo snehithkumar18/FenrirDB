@@ -1,0 +1,6 @@
+node n1 zone-a rack-1 primary healthy capacity=100 used=50 tag=ssd
+node n2 zone-b rack-2 secondary healthy capacity=100 used=25 tag=ssd
+node n3 zone-c rack-3 secondary healthy capacity=100 used=10 tag=hdd
+node n4 zone-a rack-4 secondary offline capacity=100 used=80
+shard s1 5 n1:leader:log=100 n2:log=99 n3:log=98
+shard s2 8 n4:leader:log=80 n2:log=80

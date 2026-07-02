@@ -32,6 +32,7 @@ struct CompositeKey {
         std::memset(key1, 0, 32);
         std::memset(key2, 0, 32);
     }
+    CompositeKey(const char* k1) : CompositeKey(std::string(k1)) {}
     CompositeKey(const std::string& k1, const std::string& k2 = "") {
         std::memset(key1, 0, 32);
         std::memset(key2, 0, 32);
@@ -98,7 +99,7 @@ public:
 
     DBErrorCode insert(const CompositeKey& key, const RecordID& value);
     DBErrorCode search(const CompositeKey& key, RecordID& value);
-    DBErrorCode range_search(const CompositeKey& start_key, const CompositeKey& end_key, std::vector<RecordID>& results); // Injected Bug 4 (OOB Read)
+    DBErrorCode range_search(const CompositeKey& start_key, const CompositeKey& end_key, std::vector<RecordID>& results);
     
     uint32_t get_root_page_id() const { return root_page_id; }
 };

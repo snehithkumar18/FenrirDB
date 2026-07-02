@@ -14,9 +14,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     std::vector<FenrirDB::Document> left_docs;
     std::vector<FenrirDB::Document> right_docs;
 
-    // We want to trigger the stack overflow in VectorizedHashJoin
-    // by having a single key match many rows.
-    // Left child: up to 200 documents with the same key "match_key"
+    // Left child: up to 200 documents with the same key "match_key".
     size_t num_left = size % 200;
     for (size_t i = 0; i < num_left; ++i) {
         FenrirDB::Document doc;
@@ -39,7 +37,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 
     hash_join.init();
     FenrirDB::VectorBatch batch;
-    // Perform join (will trigger Bug 6 stack overflow if num_left > 128)
+    // Perform join and consume all produced batches.
     while (hash_join.next(batch)) {
         // Consume batch
     }

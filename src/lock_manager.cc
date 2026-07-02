@@ -4,6 +4,12 @@
 
 namespace FenrirDB {
 
+LockManager::LockManager() {
+    lock_table.reserve(4096);
+    tx_locks.reserve(1024);
+    wait_for_graph.reserve(1024);
+}
+
 DBErrorCode LockManager::acquire_shared(uint32_t tx_id, const RecordID& rid) {
     std::unique_lock<std::mutex> lock(mutex_);
 
@@ -15,12 +21,14 @@ DBErrorCode LockManager::acquire_shared(uint32_t tx_id, const RecordID& rid) {
 
     LockRequestQueue& queue = lock_table[rid];
     queue.requests.emplace_back(tx_id, LockMode::SHARED);
-    LockRequest& req = queue.requests.back();
 
     // Block until granted
     queue.cv.wait(lock, [&]() {
         // Shared lock can be granted if there are no writers ahead of it in the queue
         for (const auto& r : queue.requests) {
+            if (r.tx_id == 0) {
+                continue;
+            }
             if (r.tx_id == tx_id) {
                 break;
             }
@@ -31,7 +39,14 @@ DBErrorCode LockManager::acquire_shared(uint32_t tx_id, const RecordID& rid) {
         return !queue.is_writing;
     });
 
-    req.granted = true;
+    auto req_it = std::find_if(queue.requests.begin(), queue.requests.end(),
+                               [tx_id](const LockRequest& r) {
+                                   return r.tx_id == tx_id && r.mode == LockMode::SHARED;
+                               });
+    if (req_it == queue.requests.end()) {
+        return DBErrorCode::ERR_GENERIC;
+    }
+    req_it->granted = true;
     queue.shared_count++;
     held_locks.push_back(rid);
 
@@ -59,23 +74,35 @@ DBErrorCode LockManager::acquire_exclusive(uint32_t tx_id, const RecordID& rid) 
         if (it->tx_id == tx_id && it->mode == LockMode::SHARED && it->granted) {
             has_shared = true;
             queue.shared_count--; // Temporarily decrement to allow upgrade check
-            queue.requests.erase(it);
+            it->tx_id = 0;
+            it->granted = false;
             break;
         }
     }
 
     queue.requests.emplace_back(tx_id, LockMode::EXCLUSIVE);
-    LockRequest& req = queue.requests.back();
 
     // Wait until we are at the front of the queue and no one else holds shared locks
     queue.cv.wait(lock, [&]() {
-        if (queue.requests.front().tx_id != tx_id) {
+        auto active_it = std::find_if(queue.requests.begin(), queue.requests.end(),
+                                      [](const LockRequest& r) { return r.tx_id != 0; });
+        if (active_it == queue.requests.end()) {
+            return true;
+        }
+        if (active_it->tx_id != tx_id) {
             return false; // Not at front
         }
         return queue.shared_count == 0 && !queue.is_writing;
     });
 
-    req.granted = true;
+    auto req_it = std::find_if(queue.requests.begin(), queue.requests.end(),
+                               [tx_id](const LockRequest& r) {
+                                   return r.tx_id == tx_id && r.mode == LockMode::EXCLUSIVE;
+                               });
+    if (req_it == queue.requests.end()) {
+        return DBErrorCode::ERR_GENERIC;
+    }
+    req_it->granted = true;
     queue.is_writing = true;
     
     if (std::find(held_locks.begin(), held_locks.end(), rid) == held_locks.end()) {
@@ -97,14 +124,17 @@ DBErrorCode LockManager::release(uint32_t tx_id, const RecordID& rid) {
 
     LockRequestQueue& queue = it_queue->second;
     bool found = false;
-    for (auto it = queue.requests.begin(); it != queue.requests.end(); ++it) {
-        if (it->tx_id == tx_id && it->granted) {
-            if (it->mode == LockMode::SHARED) {
-                queue.shared_count--;
+    for (auto& request : queue.requests) {
+        if (request.tx_id == tx_id && request.granted) {
+            if (request.mode == LockMode::SHARED) {
+                if (queue.shared_count > 0) {
+                    queue.shared_count--;
+                }
             } else {
                 queue.is_writing = false;
             }
-            queue.requests.erase(it);
+            request.tx_id = 0;
+            request.granted = false;
             found = true;
             break;
         }
@@ -118,12 +148,7 @@ DBErrorCode LockManager::release(uint32_t tx_id, const RecordID& rid) {
     auto& held_locks = tx_locks[tx_id];
     held_locks.erase(std::remove(held_locks.begin(), held_locks.end(), rid), held_locks.end());
 
-    // Clean up empty queues
-    if (queue.requests.empty()) {
-        lock_table.erase(it_queue);
-    } else {
-        queue.cv.notify_all(); // Wake up waiting lock requests
-    }
+    queue.cv.notify_all(); // Wake up waiting lock requests
 
     Logger::get_instance().info("LockManager", "Tx " + std::to_string(tx_id) + " released lock on Page=" +
                                  std::to_string(rid.page_id) + ", Slot=" + std::to_string(rid.slot_id));
@@ -134,34 +159,34 @@ void LockManager::release_all(uint32_t tx_id) {
     std::lock_guard<std::mutex> lock(mutex_);
 
     auto it = tx_locks.find(tx_id);
-    if (it == tx_locks.end()) return;
-
-    std::vector<RecordID> locks_to_release = it->second;
-    for (const auto& rid : locks_to_release) {
-        auto it_queue = lock_table.find(rid);
-        if (it_queue == lock_table.end()) continue;
-
-        LockRequestQueue& queue = it_queue->second;
-        for (auto req_it = queue.requests.begin(); req_it != queue.requests.end(); ++req_it) {
-            if (req_it->tx_id == tx_id && req_it->granted) {
-                if (req_it->mode == LockMode::SHARED) {
-                    queue.shared_count--;
+    for (auto& pair : lock_table) {
+        LockRequestQueue& queue = pair.second;
+        bool touched = false;
+        for (auto& request : queue.requests) {
+            if (request.tx_id == tx_id) {
+                if (request.mode == LockMode::SHARED) {
+                    if (request.granted && queue.shared_count > 0) {
+                        queue.shared_count--;
+                    }
                 } else {
-                    queue.is_writing = false;
+                    if (request.granted) {
+                        queue.is_writing = false;
+                    }
                 }
-                queue.requests.erase(req_it);
-                break;
+                request.tx_id = 0;
+                request.granted = false;
+                touched = true;
             }
         }
 
-        if (queue.requests.empty()) {
-            lock_table.erase(it_queue);
-        } else {
+        if (touched) {
             queue.cv.notify_all();
         }
     }
 
-    tx_locks.erase(it);
+    if (it != tx_locks.end()) {
+        tx_locks.erase(it);
+    }
     Logger::get_instance().info("LockManager", "Released all locks held by Tx: " + std::to_string(tx_id));
 }
 
@@ -177,14 +202,14 @@ void LockManager::build_wait_for_graph() {
         // Collect all transactions that hold the lock (granted)
         std::vector<uint32_t> holders;
         for (const auto& req : queue.requests) {
-            if (req.granted) {
+            if (req.tx_id != 0 && req.granted) {
                 holders.push_back(req.tx_id);
             }
         }
 
         // Add wait edges for any transaction waiting in the queue
         for (const auto& req : queue.requests) {
-            if (!req.granted) {
+            if (req.tx_id != 0 && !req.granted) {
                 for (uint32_t holder : holders) {
                     if (holder != req.tx_id) {
                         wait_for_graph[req.tx_id].push_back(holder);

@@ -1,5 +1,6 @@
 #include "query_planner.h"
 #include "logger.h"
+#include <algorithm>
 
 namespace FenrirDB {
 
@@ -106,7 +107,7 @@ bool FilterExecutor::next(Document& doc, RecordID& rid) {
     while (child->next(doc, rid)) {
         Variant doc_val;
         if (doc.get_field(field, doc_val)) {
-            // Apply expression evaluation (Bug 3 Type Confusion can trigger here!)
+            // Apply expression evaluation for the scan predicate.
             if (val.type == VariantType::INT) {
                 int left = doc_val.get_int();
                 int right = val.get_int();
@@ -219,14 +220,24 @@ bool NestedLoopJoinExecutor::next(Document& doc, RecordID& rid) {
                     if (out_val.get_int() == in_val.get_int()) {
                         // Merge fields from outer and inner documents into doc
                         doc = outer_doc;
-                        doc.set_field(inner_col, in_val);
+                        for (const auto& field : inner_doc.get_fields()) {
+                            Variant existing;
+                            if (!doc.get_field(field.first, existing)) {
+                                doc.set_field(field.first, field.second);
+                            }
+                        }
                         rid = outer_rid;
                         return true;
                     }
                 } else if (out_val.type == VariantType::STRING && in_val.type == VariantType::STRING) {
                     if (out_val.get_string() == in_val.get_string()) {
                         doc = outer_doc;
-                        doc.set_field(inner_col, in_val);
+                        for (const auto& field : inner_doc.get_fields()) {
+                            Variant existing;
+                            if (!doc.get_field(field.first, existing)) {
+                                doc.set_field(field.first, field.second);
+                            }
+                        }
                         rid = outer_rid;
                         return true;
                     }
@@ -304,9 +315,11 @@ bool HashJoinExecutor::next(Document& doc, RecordID& rid) {
                 for (const auto& in_doc : it->second) {
                     Document joined = out_doc;
                     // Merge fields
-                    Variant in_val;
-                    if (in_doc.get_field(inner_col, in_val)) {
-                        joined.set_field(inner_col, in_val);
+                    for (const auto& field : in_doc.get_fields()) {
+                        Variant existing;
+                        if (!joined.get_field(field.first, existing)) {
+                            joined.set_field(field.first, field.second);
+                        }
                     }
                     matched_docs.push_back(joined);
                 }

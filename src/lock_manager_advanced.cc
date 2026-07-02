@@ -115,7 +115,7 @@ bool LockManagerAdvanced::has_cycle(uint32_t node, std::unordered_set<uint32_t>&
         for (const auto& edge : waits_for_graph[node]) {
             uint32_t neighbor = edge.holder_txn_id;
             
-            // Injected Bug 9: Concurrency UAF on blocking_request when accessed without holding queue lock
+            // Snapshot the blocking request while walking the queue.
             if (edge.blocking_request) {
                 LockMode mode = edge.blocking_request->lock_mode;
                 (void)mode;

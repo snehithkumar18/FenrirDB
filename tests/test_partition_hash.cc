@@ -1,8 +1,11 @@
 #include "../src/query_engine_compiler_partition_hash.h"
+#include "../src/errors.h"
 #include <iostream>
 #include <cassert>
 #include <cstdio>
 #include <vector>
+
+using FenrirDB::DBErrorCode;
 
 void test_hash_partition_routing() {
     std::cout << "Running test_hash_partition_routing..." << std::endl;

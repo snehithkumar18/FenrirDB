@@ -1,10 +1,13 @@
 #include "../src/lock_manager.h"
 #include "../src/transaction_manager.h"
+#include "../src/errors.h"
 #include <iostream>
 #include <cassert>
 #include <thread>
 #include <vector>
 #include <chrono>
+
+using FenrirDB::DBErrorCode;
 
 void test_concurrent_locks_stress() {
     std::cout << "Running test_concurrent_locks_stress..." << std::endl;
@@ -15,12 +18,13 @@ void test_concurrent_locks_stress() {
         workers.emplace_back([&lock_mgr, i]() {
             uint32_t tx_id = i;
             uint32_t resource_id = (i % 2 == 0) ? 100 : 200;
+            FenrirDB::RecordID resource_rid = { resource_id, 0 };
 
             // Request Shared Lock
-            bool s_locked = lock_mgr.acquire_shared(tx_id, resource_id);
-            if (s_locked) {
+            DBErrorCode s_locked = lock_mgr.acquire_shared(tx_id, resource_rid);
+            if (s_locked == DBErrorCode::SUCCESS) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(20));
-                lock_mgr.release(tx_id, resource_id);
+                lock_mgr.release(tx_id, resource_rid);
             }
         });
     }
@@ -38,20 +42,20 @@ void test_transaction_snapshot_visibility() {
     FenrirDB::TransactionManager tx_mgr(log_mgr, lock_mgr);
 
     // Start tx1
-    auto tx1 = tx_mgr.begin_tx(1);
+    auto tx1 = tx_mgr.begin_tx();
     tx1->read_ts = 10;
 
     // Start tx2
-    auto tx2 = tx_mgr.begin_tx(2);
+    auto tx2 = tx_mgr.begin_tx();
     tx2->read_ts = 20;
 
     // Verify snapshot LSN visibility rules
     // A write at LSN 15 should be invisible to tx1 (read_ts = 10) but visible to tx2 (read_ts = 20)
-    assert(tx_mgr.is_visible(1, 15) == false);
-    assert(tx_mgr.is_visible(2, 15) == true);
+    assert(tx_mgr.is_visible(tx1->tx_id, 15) == false);
+    assert(tx_mgr.is_visible(tx2->tx_id, 15) == true);
 
-    tx_mgr.commit_tx(1);
-    tx_mgr.commit_tx(2);
+    tx_mgr.commit_tx(tx1->tx_id);
+    tx_mgr.commit_tx(tx2->tx_id);
     std::cout << "test_transaction_snapshot_visibility passed." << std::endl;
 }
 

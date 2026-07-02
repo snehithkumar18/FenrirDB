@@ -1,8 +1,11 @@
 #include "../src/storage.h"
+#include "../src/errors.h"
 #include <iostream>
 #include <cassert>
 #include <cstring>
 #include <cstdio>
+
+using FenrirDB::DBErrorCode;
 
 void test_page_basic() {
     std::cout << "Running test_page_basic..." << std::endl;
@@ -70,7 +73,7 @@ void test_page_compaction() {
     assert(std::string(data0.begin(), data0.end()) == rec1);
 
     std::vector<uint8_t> data2;
-    page.get_record(2, data2);
+    page.get_record(1, data2);
     assert(std::string(data2.begin(), data2.end()) == rec3);
 
     std::cout << "test_page_compaction passed." << std::endl;

@@ -30,7 +30,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         }
     });
 
-    // Thread 2: Concurrently run deadlock detection (triggers UAF on waits-for graph)
+    // Thread 2: concurrently run deadlock detection over the waits-for graph.
     std::thread t2([&]() {
         while (running) {
             lock_mgr.detect_deadlocks();

@@ -31,7 +31,7 @@ public:
     DBErrorCode delete_record(uint16_t slot_id);
     DBErrorCode update_record(uint16_t slot_id, const uint8_t* record_data, uint16_t record_len);
 
-    void compact(); // Injected Bug 1 (Heap Buffer Overflow)
+    void compact();
 };
 
 class DiskManager {

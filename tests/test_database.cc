@@ -1,8 +1,11 @@
 #include "../src/database.h"
+#include "../src/errors.h"
 #include "../src/wal.h"
 #include <iostream>
 #include <cassert>
 #include <cstdio>
+
+using FenrirDB::DBErrorCode;
 
 void test_database_basic() {
     std::cout << "Running test_database_basic..." << std::endl;

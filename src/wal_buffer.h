@@ -15,14 +15,14 @@ constexpr size_t WAL_BUFFER_SIZE = 1024 * 1024; // 1MB Ring Buffer
 
 class LogRingBuffer {
 private:
-    uint8_t buffer[WAL_BUFFER_SIZE];
+    std::vector<uint8_t> buffer;
     size_t head = 0;
     size_t tail = 0;
     size_t size = 0;
     std::mutex mutex_;
 
 public:
-    LogRingBuffer() = default;
+    LogRingBuffer() : buffer(WAL_BUFFER_SIZE) {}
     ~LogRingBuffer() = default;
 
     bool write(const uint8_t* data, size_t len);

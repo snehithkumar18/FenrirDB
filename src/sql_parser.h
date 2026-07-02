@@ -70,6 +70,7 @@ public:
 class SQLSelectStatement : public SQLStatement {
 public:
     std::vector<std::string> fields;
+    std::vector<std::string> select_fields;
     std::string table;
     std::string table_name;
     std::string where_field;

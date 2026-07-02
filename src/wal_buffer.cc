@@ -17,11 +17,11 @@ bool LogRingBuffer::write(const uint8_t* data, size_t len) {
 
     size_t space_to_end = WAL_BUFFER_SIZE - tail;
     if (len <= space_to_end) {
-        std::memcpy(buffer + tail, data, len);
+        std::memcpy(buffer.data() + tail, data, len);
         tail = (tail + len) % WAL_BUFFER_SIZE;
     } else {
-        std::memcpy(buffer + tail, data, space_to_end);
-        std::memcpy(buffer, data + space_to_end, len - space_to_end);
+        std::memcpy(buffer.data() + tail, data, space_to_end);
+        std::memcpy(buffer.data(), data + space_to_end, len - space_to_end);
         tail = len - space_to_end;
     }
     size += len;
@@ -36,11 +36,11 @@ size_t LogRingBuffer::read(uint8_t* dest, size_t max_len) {
     size_t space_to_end = WAL_BUFFER_SIZE - head;
 
     if (read_len <= space_to_end) {
-        std::memcpy(dest, buffer + head, read_len);
+        std::memcpy(dest, buffer.data() + head, read_len);
         head = (head + read_len) % WAL_BUFFER_SIZE;
     } else {
-        std::memcpy(dest, buffer + head, space_to_end);
-        std::memcpy(dest + space_to_end, buffer, read_len - space_to_end);
+        std::memcpy(dest, buffer.data() + head, space_to_end);
+        std::memcpy(dest + space_to_end, buffer.data(), read_len - space_to_end);
         head = read_len - space_to_end;
     }
     size -= read_len;

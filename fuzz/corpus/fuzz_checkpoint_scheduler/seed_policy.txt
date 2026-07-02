@@ -1,0 +1,8 @@
+max_wal_bytes=1024
+max_dirty_pages=100
+periodic_interval_ms=5000
+min_interval_ms=100
+max_replica_lag=50
+full_every_n=2
+allow_during_backup=true
+prefer_incremental=true

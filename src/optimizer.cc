@@ -101,7 +101,7 @@ bool QueryOptimizer::choose_index_scan(const std::string& table, const std::stri
     Logger::get_instance().info("Optimizer", "Cost estimation: SeqScan=" + std::to_string(seq_cost) +
                                  ", IndexScan=" + std::to_string(idx_cost) + " (selectivity=" + std::to_string(selectivity) + ")");
 
-    return idx_cost < seq_cost;
+    return idx_cost <= seq_cost;
 }
 
 } // namespace FenrirDB

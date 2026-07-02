@@ -23,8 +23,8 @@ void test_transaction_commit_visibility() {
     auto tx2 = tx_mgr.begin_tx();
     uint32_t tid2 = tx2->tx_id;
 
-    // Transaction 1 inserts a record with LSN = 10
-    uint64_t record_lsn = 10;
+    // Transaction 1 inserts a record using the WAL-assigned LSN.
+    uint64_t record_lsn = log_mgr.append_record(tid1, FenrirDB::LogRecordType::INSERT, 0, 0, {}, {1});
     
     // According to MVCC, Tx 2 started before Tx 1 committed/inserted at LSN 10,
     // so record_lsn 10 should NOT be visible to Tx 2 (snapshot isolation)

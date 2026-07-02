@@ -1,0 +1,7 @@
+counter queries_total 3 table=users 100
+counter queries_total 2 table=events 101
+gauge cache_pages 50 pool=main 103
+histogram query_ms 7.5 1,10,100 104
+histogram query_ms 80 1,10,100 105
+span query 0 1000 1210 sql=select
+span scan 1 1010 1200 table=users

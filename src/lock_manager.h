@@ -52,7 +52,7 @@ private:
     void build_wait_for_graph();
 
 public:
-    LockManager() = default;
+    LockManager();
     ~LockManager() = default;
 
     DBErrorCode acquire_shared(uint32_t tx_id, const RecordID& rid);

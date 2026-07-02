@@ -1,8 +1,11 @@
 build/
+build-vs/
+out/
 *.o
 *.exe
 *.obj
 *.bin
+!fuzz/corpus/**/*.bin
 *.db
 *.wal
 *.log

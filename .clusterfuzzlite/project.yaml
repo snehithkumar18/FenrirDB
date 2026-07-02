@@ -1,4 +1,24 @@
 language: c++
 fuzz_targets:
+  - fuzz_backup_restore
+  - fuzz_batch_job_runner
+  - fuzz_binary_stream
+  - fuzz_cbo
+  - fuzz_catalog_planner
+  - fuzz_checkpoint_scheduler
+  - fuzz_data_transform
+  - fuzz_expression
+  - fuzz_huffman
+  - fuzz_lock
+  - fuzz_lzw
+  - fuzz_manifest
+  - fuzz_pipeline
   - fuzz_query
+  - fuzz_replication_topology
+  - fuzz_schema_evolution
+  - fuzz_segment_cache
   - fuzz_storage
+  - fuzz_telemetry
+  - fuzz_tx
+  - fuzz_vectorized
+  - fuzz_workload

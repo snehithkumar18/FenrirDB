@@ -1,0 +1,10 @@
+table users
+version 1
+field id int required unique min=0
+field email string required maxlen=120
+field score int default=0 min=0 max=1000
+index users_pk btree id unique
+---
+step users 1 2
+action add_field active bool default=true
+action add_index users_score score

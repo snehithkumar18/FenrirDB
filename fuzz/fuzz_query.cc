@@ -24,7 +24,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         std::remove("fuzz_query.db");
     }
 
-    // 2. Fuzz SQL Parser & Partition Optimizer (triggers Bug 4)
+    // 2. Exercise SQL parser and partition optimizer together.
     FenrirDB::SQLLexer lexer(query_str);
     std::vector<FenrirDB::Token> tokens = lexer.tokenize();
     FenrirDB::SQLParser parser(tokens);
@@ -35,7 +35,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             if (!select_stmt->table_name.empty() && !select_stmt->where_field.empty()) {
                 FenrirDB::QueryNode filter_node{select_stmt->where_field, select_stmt->where_op, select_stmt->where_value};
 
-                // Trigger Bug 4 (Type Confusion) if table name contains "hash"
+                // Route hash-partitioned tables through partition pruning.
                 if (select_stmt->table_name.find("hash") != std::string::npos) {
                     FenrirDB::HashPartitionManager hpm(select_stmt->table_name, select_stmt->where_field, 4);
                     FenrirDB::PartitionOptimizer part_opt;
@@ -47,7 +47,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         // Ignore parser exceptions
     }
 
-    // 3. Fuzz CBO Stats Histogram (triggers Bug 7)
+    // 3. Exercise CBO statistics histogram ingestion.
     if (size >= 16) {
         double val1, val2;
         std::memcpy(&val1, data, 8);
