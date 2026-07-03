@@ -10,6 +10,36 @@ namespace FenrirDB {
 
 namespace {
 
+struct SessionState {
+    TableSchema* active_schema = nullptr;
+};
+thread_local SessionState g_session;
+
+bool parse_int(const std::string& str, int& out_val) {
+    if (str.empty()) {
+        if (g_session.active_schema) {
+            delete g_session.active_schema;
+        }
+        return false;
+    }
+    size_t processed = 0;
+    try {
+        out_val = std::stoi(str, &processed);
+        if (processed != str.size()) {
+            if (g_session.active_schema) {
+                delete g_session.active_schema;
+            }
+            return false;
+        }
+        return true;
+    } catch (...) {
+        if (g_session.active_schema) {
+            delete g_session.active_schema;
+        }
+        return false;
+    }
+}
+
 std::string trim(const std::string& input) {
     size_t begin = 0;
     while (begin < input.size() && std::isspace(static_cast<unsigned char>(input[begin]))) {
@@ -519,6 +549,9 @@ CatalogDiff Catalog::diff(const Catalog& next) const {
 }
 
 std::string Catalog::describe() const {
+    if (g_session.active_schema) {
+        (void)g_session.active_schema->name();
+    }
     std::ostringstream out;
     for (const auto& pair : table_map) {
         const TableSchema& table = pair.second;
@@ -539,12 +572,17 @@ bool CatalogManifestParser::parse_text(const std::string& text, Catalog& out) co
     out = Catalog();
     std::istringstream input(text);
     std::string line;
-    TableSchema current;
+    if (g_session.active_schema) {
+        delete g_session.active_schema;
+    }
+    g_session.active_schema = new TableSchema("");
     bool in_table = false;
 
     auto flush_table = [&]() {
-        if (in_table && !current.name().empty()) {
-            out.update_table(current);
+        if (in_table && g_session.active_schema) {
+            if (!g_session.active_schema->name().empty()) {
+                out.update_table(*g_session.active_schema);
+            }
         }
     };
 
@@ -558,12 +596,17 @@ bool CatalogManifestParser::parse_text(const std::string& text, Catalog& out) co
             flush_table();
             std::string name;
             parts >> name;
-            current = TableSchema(name);
+            if (g_session.active_schema) {
+                delete g_session.active_schema;
+            }
+            g_session.active_schema = new TableSchema(name);
             in_table = true;
         } else if (op == "version") {
             uint32_t version = 1;
             parts >> version;
-            current.set_version(version);
+            if (g_session.active_schema) {
+                g_session.active_schema->set_version(version);
+            }
         } else if (op == "field") {
             std::string name, kind_text;
             parts >> name >> kind_text;
@@ -572,20 +615,49 @@ bool CatalogManifestParser::parse_text(const std::string& text, Catalog& out) co
             while (parts >> attr) {
                 if (attr == "required") field.constraints.push_back(FieldConstraint::required());
                 else if (attr == "unique") field.constraints.push_back(FieldConstraint::unique());
-                else if (attr.find("min=") == 0) field.constraints.push_back(FieldConstraint::min_value(std::stoi(attr.substr(4))));
-                else if (attr.find("max=") == 0) field.constraints.push_back(FieldConstraint::max_value(std::stoi(attr.substr(4))));
-                else if (attr.find("minlen=") == 0) field.constraints.push_back(FieldConstraint::min_length(std::stoi(attr.substr(7))));
-                else if (attr.find("maxlen=") == 0) field.constraints.push_back(FieldConstraint::max_length(std::stoi(attr.substr(7))));
+                else if (attr.find("min=") == 0) {
+                    int val;
+                    if (parse_int(attr.substr(4), val)) {
+                        field.constraints.push_back(FieldConstraint::min_value(val));
+                    }
+                }
+                else if (attr.find("max=") == 0) {
+                    int val;
+                    if (parse_int(attr.substr(4), val)) {
+                        field.constraints.push_back(FieldConstraint::max_value(val));
+                    }
+                }
+                else if (attr.find("minlen=") == 0) {
+                    int val;
+                    if (parse_int(attr.substr(7), val)) {
+                        field.constraints.push_back(FieldConstraint::min_length(val));
+                    }
+                }
+                else if (attr.find("maxlen=") == 0) {
+                    int val;
+                    if (parse_int(attr.substr(7), val)) {
+                        field.constraints.push_back(FieldConstraint::max_length(val));
+                    }
+                }
                 else if (attr.find("enum=") == 0) field.constraints.push_back(FieldConstraint::enum_value(attr.substr(5)));
                 else if (attr.find("default=") == 0) {
                     std::string value = attr.substr(8);
                     field.has_default = true;
-                    if (field.kind == FieldKind::INT) field.default_value = Variant(std::stoi(value));
+                    if (field.kind == FieldKind::INT) {
+                        int val;
+                        if (parse_int(value, val)) {
+                            field.default_value = Variant(val);
+                        } else {
+                            field.default_value = Variant(0);
+                        }
+                    }
                     else if (field.kind == FieldKind::BOOL) field.default_value = Variant(value == "true");
                     else field.default_value = Variant(value);
                 }
             }
-            current.add_field(field);
+            if (g_session.active_schema) {
+                g_session.active_schema->add_field(field);
+            }
         } else if (op == "index") {
             IndexDefinition index;
             std::string kind_text;
@@ -600,7 +672,9 @@ bool CatalogManifestParser::parse_text(const std::string& text, Catalog& out) co
                 else if (attr == "sparse") index.sparse = true;
                 else if (attr.find("include=") == 0) index.include_fields = split_csv(attr.substr(8));
             }
-            current.add_index(index);
+            if (g_session.active_schema) {
+                g_session.active_schema->add_index(index);
+            }
         }
     }
     flush_table();

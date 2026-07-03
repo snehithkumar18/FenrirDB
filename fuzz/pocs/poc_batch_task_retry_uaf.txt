@@ -1,6 +1,0 @@
-table users
-version 1
-field id int required unique
----
-job nightly
-task t1 plan_workload cost=1 workload=find|users

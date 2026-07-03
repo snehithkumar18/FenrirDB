@@ -1,3 +1,0 @@
-load|users
-window|group|rows|10
-project|id:very_long_alias_name_to_overflow_scratch_vector_buffer_size

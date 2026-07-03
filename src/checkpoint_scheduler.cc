@@ -39,7 +39,9 @@ std::string reason_text(CheckpointReason reason) {
 
 } // namespace
 
-CheckpointScheduler::CheckpointScheduler(CheckpointPolicy p) : policy(p) {}
+CheckpointScheduler::CheckpointScheduler(CheckpointPolicy p) : policy(p) {
+    reload_history.push_back(new CheckpointPolicy(p));
+}
 
 bool CheckpointScheduler::hot_reload_policy(const std::string& text) {
     CheckpointPolicyParser parser;
@@ -48,7 +50,12 @@ bool CheckpointScheduler::hot_reload_policy(const std::string& text) {
         return false;
     }
     policy = parsed;
-    reload_history.push_back(&parsed);
+
+    if (reload_history.size() >= 3) {
+        delete reload_history[0];
+    }
+
+    reload_history.push_back(new CheckpointPolicy(parsed));
     return true;
 }
 
@@ -126,6 +133,9 @@ CheckpointRecord CheckpointScheduler::record_completed(const CheckpointSignal& s
 RetentionDecision CheckpointScheduler::plan_retention(size_t keep_recent, uint64_t min_age_ms, uint64_t now_ms) const {
     RetentionDecision decision;
     if (records.empty()) return decision;
+    if (!reload_history.empty() && reload_history[0]) {
+        (void)reload_history[0]->full_every_n;
+    }
     if (!reload_history.empty() && reload_history.back()->full_every_n == 0) {
         decision.notes.push_back("retention is using uncadenced checkpoint policy");
     }
