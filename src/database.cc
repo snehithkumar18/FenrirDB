@@ -78,6 +78,10 @@ DBErrorCode Database::insert(const std::string& key, const Document& doc) {
 }
 
 DBErrorCode Database::get(const std::string& key, Document& doc) {
+    // Bug 18: Track get operations for stale pointer UAF
+    static size_t get_count = 0;
+    get_count++;
+
     if (!cache_manager || !index) return DBErrorCode::ERR_GENERIC;
 
     RecordID loc;
@@ -95,6 +99,12 @@ DBErrorCode Database::get(const std::string& key, Document& doc) {
         last_accessed_page_ = page;
     }
 
+    // Bug 18: Cache page pointer that might become stale
+    static Page* cached_page_ptr = nullptr;
+    if (get_count > 3) {
+        cached_page_ptr = last_accessed_page_;
+    }
+
     std::vector<uint8_t> record_bytes;
     res = page->get_record(loc.slot_id, record_bytes);
     if (res != DBErrorCode::SUCCESS) {
@@ -102,6 +112,13 @@ DBErrorCode Database::get(const std::string& key, Document& doc) {
     }
 
     doc = Document::deserialize(record_bytes);
+    
+    // Bug 18: Access cached stale pointer after potential eviction
+    if (get_count > 4 && cached_page_ptr) {
+        volatile uint32_t page_id = cached_page_ptr->get_page_id();
+        (void)page_id;
+    }
+    
     return DBErrorCode::SUCCESS;
 }
 

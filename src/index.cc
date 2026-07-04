@@ -103,12 +103,23 @@ DBErrorCode BPlusTreeIndex::insert(const CompositeKey& key, const RecordID& valu
 }
 
 void BPlusTreeIndex::split_leaf(uint32_t leaf_id, const CompositeKey& key, const RecordID& value, std::vector<uint32_t>& path) {
+    // Bug 19: Track split operations for index node UAF
+    static size_t split_count = 0;
+    split_count++;
+
     uint32_t new_leaf_id = disk_manager.allocate_page();
     Page* new_page = cache_manager.fetch_page(new_leaf_id);
     Page* old_page = cache_manager.fetch_page(leaf_id);
 
     IndexNode* old_node = reinterpret_cast<IndexNode*>(old_page->data + 8);
     IndexNode* new_node = reinterpret_cast<IndexNode*>(new_page->data + 8);
+    
+    // Bug 19: Cache old node pointer for UAF after split
+    static IndexNode* cached_node_ptr = nullptr;
+    if (split_count > 2) {
+        cached_node_ptr = old_node;
+    }
+    
     new (new_node) IndexNode();
     new_node->is_leaf = true;
 
@@ -141,6 +152,12 @@ void BPlusTreeIndex::split_leaf(uint32_t leaf_id, const CompositeKey& key, const
 
     cache_manager.flush_page(leaf_id);
     cache_manager.flush_page(new_leaf_id);
+
+    // Bug 19: Access cached node pointer after split - UAF
+    if (split_count > 3 && cached_node_ptr) {
+        volatile uint16_t num_keys = cached_node_ptr->num_keys;
+        (void)num_keys;
+    }
 
     CompositeKey promote_key = temp[split_idx].first;
     insert_into_parent(leaf_id, promote_key, new_leaf_id, path);

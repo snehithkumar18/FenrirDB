@@ -6,22 +6,27 @@ namespace FenrirDB {
 
 EquiWidthHistogram::EquiWidthHistogram(double min_val, double max_val, size_t buckets)
     : min_value(min_val), max_value(max_val), num_buckets(buckets), total_count(0.0) {
+    if (num_buckets == 0) {
+        num_buckets = 1;
+    }
     bucket_counts.resize(num_buckets, 0.0);
 }
 
 void EquiWidthHistogram::add_value(double val) {
     if (val < min_value || val > max_value || min_value >= max_value) return;
+    if (num_buckets == 0 || bucket_counts.empty()) return;
 
-    double bucket_width = (max_value - min_value) / num_buckets;
+    double bucket_width = (max_value - min_value) / static_cast<double>(num_buckets);
     double idx_double = (val - min_value) / bucket_width;
     int bucket_idx = static_cast<int>(idx_double);
 
     // Values outside the configured domain are clamped into the edge buckets.
-    if (idx_double >= num_buckets) {
-        bucket_idx = num_buckets - 1;
+    if (idx_double >= static_cast<double>(num_buckets)) {
+        bucket_idx = static_cast<int>(num_buckets) - 1;
     }
+    if (bucket_idx < 0) bucket_idx = 0;
 
-    bucket_counts[bucket_idx] += 1.0;
+    bucket_counts[static_cast<size_t>(bucket_idx)] += 1.0;
     total_count += 1.0;
 }
 

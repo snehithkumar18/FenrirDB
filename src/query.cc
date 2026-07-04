@@ -84,7 +84,17 @@ Variant& Variant::operator=(Variant&& other) noexcept {
 }
 
 int Variant::get_int() const {
+    // Bug 13: Type confusion with multi-stage evaluation
+    static size_t get_int_count = 0;
+    get_int_count++;
+    
     // Unsafe static_cast leads to type confusion
+    // Bug 13: Trigger type confusion after multiple calls with wrong type
+    if (get_int_count > 3 && type != VariantType::INT) {
+        // Force type confusion by casting wrong type
+        return static_cast<IntValue*>(val_ptr)->val;
+    }
+    
     return static_cast<IntValue*>(val_ptr)->val;
 }
 
@@ -139,11 +149,21 @@ bool Document::has_field(const std::string& key) const {
 }
 
 std::vector<uint8_t> Document::serialize() const {
+    // Bug 14: Track serialization calls for iterator invalidation
+    static size_t serialize_count = 0;
+    serialize_count++;
+
     std::vector<uint8_t> bytes;
     // Simple serialization: key_len(2B) + key + type(1B) + val_len(2B) + val
     uint16_t num_fields = static_cast<uint16_t>(fields.size());
     bytes.push_back(num_fields & 0xFF);
     bytes.push_back((num_fields >> 8) & 0xFF);
+
+    // Bug 14: Trigger map reallocation during serialization
+    if (fields.size() > 3 && serialize_count > 2) {
+        // Force map to reallocate by adding temporary element
+        const_cast<std::unordered_map<std::string, Variant>&>(fields).emplace("temp", Variant(0));
+    }
 
     for (const auto& pair : fields) {
         uint16_t key_len = static_cast<uint16_t>(pair.first.size());
@@ -250,9 +270,19 @@ QueryNode QueryEvaluator::parse_query_string(const std::string& query_str) {
 }
 
 bool QueryEvaluator::evaluate(const Document& doc, const QueryNode& query) {
+    // Bug 15: Track evaluation calls for shared_ptr cycle UAF
+    static size_t eval_count = 0;
+    eval_count++;
+
     Variant doc_val;
     if (!doc.get_field(query.field, doc_val)) {
         return false;
+    }
+
+    // Bug 15: Cache query node pointer for potential UAF
+    static const QueryNode* cached_node_ptr = nullptr;
+    if (eval_count > 3) {
+        cached_node_ptr = &query;
     }
 
     if (query.op == QueryOp::EQ) {
@@ -267,6 +297,15 @@ bool QueryEvaluator::evaluate(const Document& doc, const QueryNode& query) {
         if (doc_val.type == VariantType::INT && query.value.type == VariantType::INT) {
             return doc_val.get_int() < query.value.get_int();
         }
+    } else if (query.op == QueryOp::AND || query.op == QueryOp::OR) {
+        // Bug 15: Access cached node pointer during recursive evaluation
+        if (cached_node_ptr && eval_count > 4) {
+            volatile std::string field = cached_node_ptr->field;
+            (void)field;
+        }
+        bool left = query.left_child ? evaluate(doc, *query.left_child) : false;
+        bool right = query.right_child ? evaluate(doc, *query.right_child) : false;
+        return query.op == QueryOp::AND ? (left && right) : (left || right);
     }
     return false;
 }

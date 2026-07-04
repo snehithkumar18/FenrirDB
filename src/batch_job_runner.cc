@@ -36,6 +36,19 @@ std::string status_text(BatchTaskStatus status) {
     return "pending";
 }
 
+bool parse_uint32(const std::string& str, uint32_t& out_val) {
+    if (str.empty()) return false;
+    size_t processed = 0;
+    try {
+        unsigned long val = std::stoul(str, &processed);
+        if (processed != str.size() || val > UINT32_MAX) return false;
+        out_val = static_cast<uint32_t>(val);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
 } // namespace
 
 std::string BatchRunResult::report() const {
@@ -70,9 +83,18 @@ bool BatchJobParser::parse_text(const std::string& text, BatchJob& out) const {
                 std::string key = parts[i].substr(0, eq);
                 std::string value = parts[i].substr(eq + 1);
                 if (key == "deps") task.dependencies = split_csv(value);
-                else if (key == "attempts") task.retry.max_attempts = static_cast<uint32_t>(std::stoul(value));
-                else if (key == "backoff") task.retry.backoff_ms = static_cast<uint32_t>(std::stoul(value));
-                else if (key == "cost") task.estimated_cost = static_cast<uint32_t>(std::stoul(value));
+                else if (key == "attempts") {
+                    uint32_t val;
+                    if (parse_uint32(value, val)) task.retry.max_attempts = val;
+                }
+                else if (key == "backoff") {
+                    uint32_t val;
+                    if (parse_uint32(value, val)) task.retry.backoff_ms = val;
+                }
+                else if (key == "cost") {
+                    uint32_t val;
+                    if (parse_uint32(value, val)) task.estimated_cost = val;
+                }
                 else task.params[key] = value;
             }
             out.tasks.push_back(task);

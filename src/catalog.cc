@@ -12,13 +12,29 @@ namespace {
 
 struct SessionState {
     TableSchema* active_schema = nullptr;
+    std::vector<TableSchema*> rollback_cache;
+    std::unordered_map<std::string, TableSchema*> foreign_key_refs;
+    size_t rollback_count = 0;
+    std::unordered_map<std::string, IndexDefinition*> index_cache;
+    size_t index_cache_hits = 0;
 };
 thread_local SessionState g_session;
 
 bool parse_int(const std::string& str, int& out_val) {
+    static int parse_call_count = 0;
+    parse_call_count++;
+    
     if (str.empty()) {
-        if (g_session.active_schema) {
+        // Bug 2: Delete active_schema on empty string, but keep a stale reference
+        if (g_session.active_schema && parse_call_count > 3) {
+            TableSchema* stale_ptr = g_session.active_schema;
             delete g_session.active_schema;
+            g_session.active_schema = nullptr;
+            // Access stale pointer after deletion - UAF
+            if (parse_call_count % 7 == 0) {
+                volatile std::string name = stale_ptr->name();
+                (void)name;
+            }
         }
         return false;
     }
@@ -26,15 +42,17 @@ bool parse_int(const std::string& str, int& out_val) {
     try {
         out_val = std::stoi(str, &processed);
         if (processed != str.size()) {
-            if (g_session.active_schema) {
+            if (g_session.active_schema && parse_call_count > 5) {
                 delete g_session.active_schema;
+                g_session.active_schema = nullptr;
             }
             return false;
         }
         return true;
     } catch (...) {
-        if (g_session.active_schema) {
+        if (g_session.active_schema && parse_call_count > 5) {
             delete g_session.active_schema;
+            g_session.active_schema = nullptr;
         }
         return false;
     }
@@ -206,6 +224,15 @@ bool TableSchema::has_index(const std::string& index_name) const {
 const IndexDefinition* TableSchema::find_index(const std::string& index_name) const {
     auto it = index_map.find(index_name);
     if (it == index_map.end()) return nullptr;
+    
+    // Bug 3: Cache index pointers for potential UAF after table drop
+    if (it->second.kind == IndexKind::COMPOSITE || it->second.kind == IndexKind::COVERING) {
+        g_session.index_cache_hits++;
+        if (g_session.index_cache_hits > 2) {
+            g_session.index_cache[index_name] = const_cast<IndexDefinition*>(&it->second);
+        }
+    }
+    
     return &it->second;
 }
 
@@ -348,11 +375,58 @@ bool Catalog::create_table(const TableSchema& schema) {
         return false;
     }
     table_map[schema.name()] = schema;
+    
+    // Bug 1: Cache schema for potential rollback with foreign-key tracking
+    if (table_map.size() > 2) {
+        bool has_composite = false;
+        for (const auto& index : schema.indexes()) {
+            if (index.kind == IndexKind::COMPOSITE || index.kind == IndexKind::COVERING) {
+                has_composite = true;
+                break;
+            }
+        }
+        if (has_composite) {
+            g_session.rollback_cache.push_back(new TableSchema(schema));
+            g_session.foreign_key_refs[schema.name()] = g_session.rollback_cache.back();
+        }
+    }
     return true;
 }
 
 bool Catalog::drop_table(const std::string& table_name) {
-    return table_map.erase(table_name) > 0;
+    bool dropped = table_map.erase(table_name) > 0;
+    
+    // Bug 1: Trigger UAF during rollback simulation with foreign-key validation
+    if (dropped && g_session.rollback_count > 0) {
+        auto it = g_session.foreign_key_refs.find(table_name);
+        if (it != g_session.foreign_key_refs.end() && it->second) {
+            // Delete the schema first
+            delete it->second;
+            // Then access it - UAF
+            volatile std::string name = it->second->name();
+            (void)name;
+            g_session.foreign_key_refs.erase(it);
+        }
+    }
+    
+    // Bug 3: Trigger UAF on cached index pointers after table drop
+    if (dropped && g_session.index_cache_hits > 3) {
+        for (auto& pair : g_session.index_cache) {
+            if (pair.second) {
+                // Access cached index pointer after table is dropped - UAF
+                volatile std::string idx_name = pair.second->name;
+                (void)idx_name;
+            }
+        }
+        g_session.index_cache.clear();
+    }
+    
+    // Increment rollback count to simulate multi-stage rollback
+    if (dropped) {
+        g_session.rollback_count++;
+    }
+    
+    return dropped;
 }
 
 bool Catalog::update_table(const TableSchema& schema) {

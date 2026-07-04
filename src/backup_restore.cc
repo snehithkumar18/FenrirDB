@@ -39,6 +39,17 @@ std::string hex_hash(const std::string& text) {
     return out.str();
 }
 
+bool parse_uint64(const std::string& str, uint64_t& out_val) {
+    if (str.empty()) return false;
+    size_t processed = 0;
+    try {
+        out_val = std::stoull(str, &processed);
+        return processed == str.size();
+    } catch (...) {
+        return false;
+    }
+}
+
 } // namespace
 
 std::string RestorePlan::describe() const {
@@ -320,14 +331,26 @@ bool BackupManifestParser::parse_text(const std::string& text, BackupCatalog& ou
             current.kind = parse_backup_kind(parts[2]);
             in_backup = true;
             for (size_t i = 3; i < parts.size(); ++i) {
-                if (parts[i].find("start=") == 0) current.started_ms = std::stoull(parts[i].substr(6));
-                else if (parts[i].find("end=") == 0) current.completed_ms = std::stoull(parts[i].substr(4));
-                else if (parts[i].find("checkpoint=") == 0) current.base_checkpoint_id = std::stoull(parts[i].substr(11));
+                if (parts[i].find("start=") == 0) {
+                    uint64_t val;
+                    if (parse_uint64(parts[i].substr(6), val)) current.started_ms = val;
+                }
+                else if (parts[i].find("end=") == 0) {
+                    uint64_t val;
+                    if (parse_uint64(parts[i].substr(4), val)) current.completed_ms = val;
+                }
+                else if (parts[i].find("checkpoint=") == 0) {
+                    uint64_t val;
+                    if (parse_uint64(parts[i].substr(11), val)) current.base_checkpoint_id = val;
+                }
                 else if (parts[i].find("wal=") == 0) {
                     auto range = split(parts[i].substr(4), '-');
                     if (range.size() == 2) {
-                        current.wal_start = std::stoull(range[0]);
-                        current.wal_end = std::stoull(range[1]);
+                        uint64_t v1, v2;
+                        if (parse_uint64(range[0], v1) && parse_uint64(range[1], v2)) {
+                            current.wal_start = v1;
+                            current.wal_end = v2;
+                        }
                     }
                 } else if (parts[i].find("parent=") == 0) current.parent_backup_id = parts[i].substr(7);
                 else if (parts[i].find("catalog=") == 0) current.catalog_signature = parts[i].substr(8);
@@ -337,10 +360,14 @@ bool BackupManifestParser::parse_text(const std::string& text, BackupCatalog& ou
             object.object_id = parts[1];
             object.kind = parse_object_kind(parts[2]);
             object.table = parts[3] == "-" ? "" : parts[3];
-            object.length = std::stoull(parts[4]);
+            uint64_t len_val;
+            if (parse_uint64(parts[4], len_val)) object.length = len_val;
             for (size_t i = 5; i < parts.size(); ++i) {
                 if (parts[i].find("shard=") == 0) object.shard = parts[i].substr(6);
-                else if (parts[i].find("offset=") == 0) object.logical_offset = std::stoull(parts[i].substr(7));
+                else if (parts[i].find("offset=") == 0) {
+                    uint64_t off_val;
+                    if (parse_uint64(parts[i].substr(7), off_val)) object.logical_offset = off_val;
+                }
                 else if (parts[i].find("checksum=") == 0) object.checksum = parts[i].substr(9);
             }
             current.objects.push_back(object);

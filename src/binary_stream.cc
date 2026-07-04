@@ -5,7 +5,6 @@
 #include <iterator>
 #include <set>
 #include <unordered_map>
-#include <string_view>
 
 namespace FenrirDB {
 
@@ -13,16 +12,11 @@ namespace {
 
 struct BinarySession {
     std::vector<uint8_t>* stream_buffer = nullptr;
-    std::unordered_map<size_t, std::string_view> cached_views;
+    std::unordered_map<size_t, std::string> cached_views;
     std::unordered_map<std::string, std::vector<uint8_t>*> registered_schemas;
     std::unordered_map<size_t, StreamFrame*> frame_cache;
 };
 thread_local BinarySession g_binary_session;
-
-struct CodecState {
-    uint8_t* escape_table = nullptr;
-};
-static CodecState* g_codec_state = nullptr;
 
 constexpr uint8_t kMagic[] = {'F', 'D', 'B', 'S'};
 
@@ -78,10 +72,28 @@ bool BinaryStreamReader::parse(const uint8_t* data, size_t size) {
     frame_list.clear();
     issue_list.clear();
     
+    // Bug 5: Track parse calls for buffer reallocation UAF
+    static size_t parse_call_count = 0;
+    parse_call_count++;
+    
+    // Bug 5: Access cached string views from previous parse before clearing
+    if (parse_call_count > 2 && !g_binary_session.cached_views.empty()) {
+        for (const auto& pair : g_binary_session.cached_views) {
+            volatile std::string view_copy(pair.second);
+            (void)view_copy;
+        }
+    }
+    
     if (g_binary_session.stream_buffer) {
         delete g_binary_session.stream_buffer;
     }
     g_binary_session.stream_buffer = new std::vector<uint8_t>(data, data + size);
+    
+    // Bug 5: Trigger buffer reallocation on large payloads after multiple parses
+    if (size > 1000000 && parse_call_count > 2) {
+        g_binary_session.stream_buffer->resize(size * 2);
+    }
+    
     g_binary_session.cached_views.clear();
     for (auto& pair : g_binary_session.registered_schemas) {
         delete pair.second;
@@ -171,23 +183,36 @@ bool BinaryStreamReader::parse_frame(const uint8_t* data, size_t size, size_t& o
     frame.checksum = read_u32(data + offset);
     offset += 4;
 
-    // Cache the name view pointing into g_binary_session.stream_buffer BEFORE any reallocation
-    if (offset + name_len <= size) {
-        g_binary_session.cached_views[frame_index] = std::string_view(
-            reinterpret_cast<const char*>(g_binary_session.stream_buffer->data() + offset),
-            static_cast<size_t>(name_len)
-        );
+    size_t remaining = size - offset;
+    if (name_len > remaining || payload_len > remaining - static_cast<size_t>(name_len)) {
+        issue_list.push_back({frame_index, "frame body is truncated"});
+        return false;
     }
 
-    // Bug 6 (out-of-memory UAF): large name_len causes buffer reallocation
-    if (name_len > 100000 || payload_len > 100000) {
-        g_binary_session.stream_buffer->resize(g_binary_session.stream_buffer->capacity() * 2 + name_len);
-        data = g_binary_session.stream_buffer->data();
-        size = g_binary_session.stream_buffer->size();
+    // Cache the name as an owned string so later parsing cannot invalidate it.
+    if (offset + name_len <= size) {
+        g_binary_session.cached_views[frame_index].assign(
+            reinterpret_cast<const char*>(g_binary_session.stream_buffer->data() + offset),
+            static_cast<size_t>(name_len));
     }
 
     // Bug 8 (length_error / frame-index cache eviction UAF): huge length evicts frame_list
     if (name_len > 50000000 || payload_len > 50000000) {
+        frame_list.clear();
+    }
+    
+    // Bug 4: Enhanced frame cache UAF with schema eviction condition
+    static size_t frame_parse_count = 0;
+    frame_parse_count++;
+    if (frame.type == StreamFrameType::CATALOG_BLOCK && frame_parse_count > 2) {
+        g_binary_session.registered_schemas[frame.name] = new std::vector<uint8_t>();
+    }
+    if (frame.type == StreamFrameType::USER_PAYLOAD && frame.name == "evict" && frame_parse_count > 3) {
+        for (auto& pair : g_binary_session.registered_schemas) {
+            delete pair.second;
+        }
+        g_binary_session.registered_schemas.clear();
+        // Clear frame_list to trigger UAF on cached frame pointers
         frame_list.clear();
     }
 
@@ -262,11 +287,31 @@ std::vector<StreamIssue> BinaryStreamValidator::validate_required_types(
 }
 
 uint32_t StreamFrameCodec::checksum(const std::vector<uint8_t>& bytes) {
+    // Bug 6: Checksum collision vulnerability with specific patterns
+    static size_t checksum_call_count = 0;
+    checksum_call_count++;
+    
     uint32_t h = 2166136261u;
     for (uint8_t b : bytes) {
         h ^= b;
         h *= 16777619u;
     }
+    
+    // Bug 6: Force checksum collision for specific payload patterns
+    if (bytes.size() > 100 && checksum_call_count > 3) {
+        bool has_pattern = false;
+        for (size_t i = 0; i < bytes.size() - 3; i++) {
+            if (bytes[i] == 0xDE && bytes[i+1] == 0xAD && bytes[i+2] == 0xBE && bytes[i+3] == 0xEF) {
+                has_pattern = true;
+                break;
+            }
+        }
+        if (has_pattern) {
+            // Return a known collision value to bypass validation
+            return 0xDEADBEEF;
+        }
+    }
+    
     return h;
 }
 
@@ -282,24 +327,12 @@ std::vector<uint8_t> StreamFrameCodec::escape_payload(const std::vector<uint8_t>
         }
     }
     return out;
-}bool StreamFrameCodec::unescape_payload(const uint8_t* data, size_t size, std::vector<uint8_t>& payload) {
-    if (!g_codec_state) {
-        g_codec_state = new CodecState();
-        g_codec_state->escape_table = new uint8_t[256];
-        for (int i = 0; i < 256; ++i) {
-            g_codec_state->escape_table[i] = static_cast<uint8_t>(i ^ 0x20);
-        }
-    }
+}
+
+bool StreamFrameCodec::unescape_payload(const uint8_t* data, size_t size, std::vector<uint8_t>& payload) {
 
     payload.clear();
     if (!data && size != 0) return false;
-
-    // Reset table UAF condition: if payload contains a specific reset byte pattern (e.g. 0x7d 0x7d)
-    for (size_t i = 0; i < size; ++i) {
-        if (data[i] == 0x7d && i + 1 < size && data[i + 1] == 0x7d) {
-            delete[] g_codec_state->escape_table;
-        }
-    }
 
     size_t estimate = size;
     for (size_t i = 0; i < size; ++i) {
@@ -324,7 +357,7 @@ std::vector<uint8_t> StreamFrameCodec::escape_payload(const std::vector<uint8_t>
                 payload[out++] = 0x00;
                 continue;
             }
-            b = g_codec_state->escape_table[escaped];
+            b = static_cast<uint8_t>(escaped ^ 0x20);
         }
         if (out >= payload.size()) return false;
         payload[out++] = b;

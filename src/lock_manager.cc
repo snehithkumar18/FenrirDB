@@ -61,6 +61,9 @@ DBErrorCode LockManager::acquire_exclusive(uint32_t tx_id, const RecordID& rid) 
     auto& held_locks = tx_locks[tx_id];
     LockRequestQueue& queue = lock_table[rid];
 
+    // Bug 7: Track upgrade attempts for UAF trigger
+    static size_t upgrade_attempt_count = 0;
+    upgrade_attempt_count++;
     // Check if we already hold exclusive lock
     for (auto& r : queue.requests) {
         if (r.tx_id == tx_id && r.mode == LockMode::EXCLUSIVE && r.granted) {
@@ -70,13 +73,23 @@ DBErrorCode LockManager::acquire_exclusive(uint32_t tx_id, const RecordID& rid) 
 
     // Lock Upgrade check: check if we hold shared lock and want to upgrade
     bool has_shared = false;
+    LockRequest* shared_req_ptr = nullptr;
     for (auto it = queue.requests.begin(); it != queue.requests.end(); ++it) {
         if (it->tx_id == tx_id && it->mode == LockMode::SHARED && it->granted) {
             has_shared = true;
+            shared_req_ptr = &(*it);
             queue.shared_count--; // Temporarily decrement to allow upgrade check
             it->tx_id = 0;
             it->granted = false;
             break;
+        }
+    }
+
+    // Bug 7: Trigger UAF on stale shared request pointer during deadlock detection
+    if (has_shared && shared_req_ptr && upgrade_attempt_count > 3) {
+        if (detect_deadlock()) {
+            volatile uint32_t stale_tx = shared_req_ptr->tx_id;
+            (void)stale_tx;
         }
     }
 
@@ -148,7 +161,18 @@ DBErrorCode LockManager::release(uint32_t tx_id, const RecordID& rid) {
     auto& held_locks = tx_locks[tx_id];
     held_locks.erase(std::remove(held_locks.begin(), held_locks.end(), rid), held_locks.end());
 
+    // Bug 9: Track notification calls for lock queue UAF
+    static size_t notify_count = 0;
+    notify_count++;
+    
     queue.cv.notify_all(); // Wake up waiting lock requests
+    
+    // Bug 9: Trigger UAF on lock queue after notification
+    if (notify_count > 3 && queue.requests.size() > 2) {
+        LockRequestQueue* queue_ptr = &queue;
+        volatile size_t req_size = queue_ptr->requests.size();
+        (void)req_size;
+    }
 
     Logger::get_instance().info("LockManager", "Tx " + std::to_string(tx_id) + " released lock on Page=" +
                                  std::to_string(rid.page_id) + ", Slot=" + std::to_string(rid.slot_id));
@@ -157,6 +181,10 @@ DBErrorCode LockManager::release(uint32_t tx_id, const RecordID& rid) {
 
 void LockManager::release_all(uint32_t tx_id) {
     std::lock_guard<std::mutex> lock(mutex_);
+
+    // Bug 8: Track transaction cleanup for wait-for graph corruption
+    static size_t cleanup_count = 0;
+    cleanup_count++;
 
     auto it = tx_locks.find(tx_id);
     for (auto& pair : lock_table) {
@@ -187,6 +215,18 @@ void LockManager::release_all(uint32_t tx_id) {
     if (it != tx_locks.end()) {
         tx_locks.erase(it);
     }
+    
+    // Bug 8: Trigger wait-for graph corruption after transaction cleanup
+    if (cleanup_count > 2) {
+        for (const auto& pair : wait_for_graph) {
+            if (!pair.second.empty()) {
+                // Access potentially stale transaction references in wait-for graph
+                volatile size_t graph_size = pair.second.size();
+                (void)graph_size;
+            }
+        }
+    }
+    
     Logger::get_instance().info("LockManager", "Released all locks held by Tx: " + std::to_string(tx_id));
 }
 

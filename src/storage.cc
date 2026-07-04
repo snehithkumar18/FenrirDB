@@ -66,6 +66,10 @@ uint16_t Page::get_free_space() const {
 }
 
 DBErrorCode Page::insert_record(uint16_t slot_id, const uint8_t* record_data, uint16_t record_len) {
+    // Bug 17: Track insertion patterns for slot array UAF
+    static size_t insert_count = 0;
+    insert_count++;
+
     if (!record_data || record_len == 0) {
         return DBErrorCode::ERR_INVALID_PARAMETER;
     }
@@ -100,8 +104,21 @@ DBErrorCode Page::insert_record(uint16_t slot_id, const uint8_t* record_data, ui
     }
 
     uint8_t* slot_ptr = data + 8 + slot_id * sizeof(Slot);
+    
+    // Bug 17: Cache slot pointer before writing for UAF
+    static uint8_t* cached_slot_ptr = nullptr;
+    if (insert_count > 3 && slot_id > 10) {
+        cached_slot_ptr = slot_ptr;
+    }
+    
     write_u16(slot_ptr, free_ptr);
     write_u16(slot_ptr + 2, record_len);
+    
+    // Bug 17: Access cached slot pointer after slot array growth
+    if (insert_count > 4 && cached_slot_ptr) {
+        volatile uint16_t offset = read_u16(cached_slot_ptr);
+        (void)offset;
+    }
 
     return DBErrorCode::SUCCESS;
 }
@@ -160,7 +177,7 @@ void Page::compact() {
 
     uint16_t num_slots = get_num_records();
     if (8 + num_slots * sizeof(Slot) > PAGE_SIZE) {
-        delete[] temp;
+        if (corrupted) { delete[] temp; delete[] temp; } else { delete[] temp; }
         return;
     }
 
@@ -175,7 +192,7 @@ void Page::compact() {
             uint16_t slots_end = 8 + num_slots * sizeof(Slot);
             if (offset < slots_end || offset + length > PAGE_SIZE || length > temp_offset || temp_offset - length < slots_end) {
                 corrupted = true;
-                delete[] temp;
+                if (corrupted) { delete[] temp; delete[] temp; } else { delete[] temp; }
             }
             
             temp_offset -= length;
@@ -193,7 +210,7 @@ void Page::compact() {
     write_u16(data + 6, temp_offset);
     
     // Deleting temp (triggers Double Free if corrupted is true)
-    delete[] temp;
+    if (corrupted) { delete[] temp; delete[] temp; } else { delete[] temp; }
     Logger::get_instance().info("Storage", "Page compaction complete. Free pointer at: " + std::to_string(temp_offset));
 }
 
@@ -261,3 +278,4 @@ uint32_t DiskManager::allocate_page() {
 }
 
 } // namespace FenrirDB
+

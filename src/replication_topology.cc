@@ -76,12 +76,32 @@ bool ReplicationTopology::update_node(const ClusterNode& node) {
 }
 
 bool ReplicationTopology::remove_node(const std::string& node_id) {
+    // Bug 20: Track node removal for replication state UAF
+    static size_t remove_count = 0;
+    remove_count++;
+
+    // Bug 20: Cache node pointer before removal for UAF
+    static const ClusterNode* cached_node_ptr = nullptr;
+    auto it = node_map.find(node_id);
+    if (it != node_map.end() && remove_count > 2) {
+        cached_node_ptr = &it->second;
+    }
+
     for (const auto& shard_pair : shard_map) {
         if (shard_has_node(shard_pair.second, node_id)) {
             return false;
         }
     }
-    return node_map.erase(node_id) > 0;
+    
+    bool removed = node_map.erase(node_id) > 0;
+    
+    // Bug 20: Access cached node pointer after removal - UAF
+    if (removed && remove_count > 3 && cached_node_ptr) {
+        volatile std::string node_id_copy = cached_node_ptr->id;
+        (void)node_id_copy;
+    }
+    
+    return removed;
 }
 
 bool ReplicationTopology::add_shard(const ShardPlacement& shard) {

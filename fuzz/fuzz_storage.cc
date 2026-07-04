@@ -8,12 +8,13 @@
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     if (size < 20) return 0;
 
-    // Part 1: exercise page compaction.
+    // Part 1: exercise page compaction. (Bug 16-17)
     {
         FenrirDB::Page page;
         size_t copy_len = (size < FenrirDB::PAGE_SIZE) ? size : FenrirDB::PAGE_SIZE;
         std::memcpy(page.data, data, copy_len);
         page.compact();
+    }
     }
 
     // Part 2: exercise cache eviction and refetch behavior when the input
@@ -75,3 +76,4 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 
     return 0;
 }
+
